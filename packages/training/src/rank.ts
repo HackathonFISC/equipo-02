@@ -1,4 +1,4 @@
-import { compareCodeUnits } from "@puente/solver";
+import { compareCodeUnits, type RoutingPort } from "@puente/solver";
 import { opportunityFreshness } from "./freshness";
 import {
   availabilityScore,
@@ -31,6 +31,7 @@ export interface RankInput {
   gaps: readonly TrainingGap[];
   preferences: TrainingPreferences;
   now: Date;
+  routing?: RoutingPort;
 }
 
 /**
@@ -82,11 +83,12 @@ interface OpportunityScores {
   coveredGaps: GapContribution[];
 }
 
-function scoreOpportunity(
+async function scoreOpportunity(
   opportunity: TrainingOpportunity,
   gaps: readonly TrainingGap[],
   preferences: TrainingPreferences,
-): OpportunityScores {
+  routing?: RoutingPort,
+): Promise<OpportunityScores> {
   const gapCoverage = gapCoverageScore(opportunity, gaps);
   return {
     scores: {
@@ -95,7 +97,7 @@ function scoreOpportunity(
       cost: costScore(opportunity, preferences),
       duration: durationScore(opportunity, preferences),
       modality: modalityScore(opportunity, preferences),
-      geography: geographyScore(opportunity, preferences),
+      geography: await geographyScore(opportunity, preferences, routing),
       schedule: scheduleScore(opportunity, preferences),
       availability: availabilityScore(opportunity),
       credential_relevance: credentialScore(opportunity),
@@ -115,9 +117,10 @@ export function rankOpportunities({
   gaps,
   preferences,
   now,
-}: RankInput): RankedOpportunity[] {
-  const ranked = catalog.opportunities.map((opportunity): RankedOpportunity => {
-    const { scores, coveredGaps } = scoreOpportunity(opportunity, gaps, preferences);
+  routing,
+}: RankInput): Promise<RankedOpportunity[]> {
+  const ranked = Promise.all(catalog.opportunities.map(async (opportunity): Promise<RankedOpportunity> => {
+    const { scores, coveredGaps } = await scoreOpportunity(opportunity, gaps, preferences, routing);
     const rawScores = Object.fromEntries(
       RANKING_DIMENSIONS.map((dimension) => [dimension, scores[dimension].rawScore]),
     ) as Record<RankingDimension, number>;
@@ -140,14 +143,16 @@ export function rankOpportunities({
       exclusionReasons,
       rank: 0,
     };
-  });
+  }));
 
-  ranked.sort((a, b) => {
+  return ranked.then((items) => {
+    items.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return compareCodeUnits(a.opportunity.opportunityId, b.opportunity.opportunityId);
-  });
-  ranked.forEach((item, index) => {
+    });
+    items.forEach((item, index) => {
     item.rank = index + 1;
+    });
+    return items;
   });
-  return ranked;
 }

@@ -88,7 +88,7 @@ export function deriveAdvisoryGaps(result: ExplorationResult): TrainingGap[] {
  * train. A result with no `noMatch` — including one whose `matches` is empty only
  * because a caller passed `limit: 0` — never builds a roadmap.
  */
-export function handleRoadmap(payload: unknown, deps: RoadmapHandlerDeps = {}): HandlerResult {
+export async function handleRoadmap(payload: unknown, deps: RoadmapHandlerDeps = {}): Promise<HandlerResult> {
   if (!validateExplorationResult(payload)) {
     return { status: 400, body: { error: 'invalid_exploration_result' } };
   }
@@ -104,7 +104,7 @@ export function handleRoadmap(payload: unknown, deps: RoadmapHandlerDeps = {}): 
 
   const gaps = deriveAdvisoryGaps(result);
   const catalog = deps.trainingCatalog ?? createSeedTrainingCatalog();
-  const roadmap: Roadmap = buildRoadmap(
+  const roadmap: Roadmap = await buildRoadmap(
     {
       candidateId: result.candidateId,
       aptitude: 'not_currently_apt',
