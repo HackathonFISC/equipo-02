@@ -140,7 +140,7 @@ test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async
       await route.fulfill({ status: 204, body: '' });
       return;
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ searches: [{ matches: [], newSinceLastVisit: [{ vacancy: { jobId: 'new-1', title: 'Nueva vacante', company: 'Empresa' }, freshness: { label: 'Nueva' } }], summary: { matched: 1 } }] }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ searches: [{ matches: [], newSinceLastVisit: [{ vacancy: { jobId: 'new-1', title: 'Nueva vacante', company: 'Empresa', location: { raw: 'Panamá' }, salary: { minUsd: null, maxUsd: null }, modality: 'remote', provenance: { sourceUrl: 'https://example.test/job' } }, freshness: { label: 'Nueva' }, matchReasons: [] }], summary: { matched: 1 } }] }) });
   });
   await page.goto('/vacantes');
   await expect(page.getByRole('heading', { name: 'Nuevas desde tu última visita' })).toBeVisible(RESPUESTA);

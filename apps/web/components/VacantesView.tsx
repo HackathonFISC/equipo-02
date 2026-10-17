@@ -124,7 +124,7 @@ const VacancyCard = forwardRef<HTMLButtonElement, { match: VacancyMatch; onOpen:
   return <button ref={ref} className="vacancy-card" onClick={() => onOpen(match)} aria-label={`Ver detalles de ${vacancy.title}`}>
     <span className="vacancy-card-top"><span className="vacancy-modality">{MODALITY_LABELS[vacancy.modality]}</span><span>{freshness.label}</span></span>
     <strong className="vacancy-title">{vacancy.title}</strong><span className="vacancy-company">{vacancy.company ?? 'Empresa no indicada'}</span>
-    <span className="vacancy-meta">{vacancy.location.raw ?? vacancy.location.district ?? 'Ubicación no indicada'} · {money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</span>
+    <span className="vacancy-meta">{vacancy.location?.raw ?? vacancy.location?.district ?? 'Ubicación no indicada'} · {money(vacancy.salary?.minUsd ?? null, vacancy.salary?.maxUsd ?? null)}</span>
     <span className="vacancy-card-action">Ver detalles <span aria-hidden="true">→</span></span>
   </button>;
 });
