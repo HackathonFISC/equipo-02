@@ -264,20 +264,25 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
   return {
     async enqueue(input) {
       const jobId = `chatjob_${randomUUID()}`;
-      const active = input.enforceAdmission ? await query(
-        `select 1 from chat_jobs where candidate_id = $1 and status in ('queued', 'running') limit 1`,
-        [input.candidateId],
-      ) : { rows: [] };
-      if (input.enforceAdmission && !active.rows[0]) {
-        const total = await query("select count(*)::int as count from chat_jobs where status = 'queued'", []);
-        if (Number(total.rows[0]?.count ?? 0) >= CHAT_QUEUE_LIMIT) throw new ChatJobBackpressureError();
-      }
-      if (active.rows[0]) {
-        const existing = await query(
-          'select 1 from chat_jobs where candidate_id = $1 and idempotency_key = $2',
-          [input.candidateId, input.idempotencyKey],
+      if (input.enforceAdmission) {
+        const atomic = await query(
+          `with queue_lock as (select pg_advisory_xact_lock(hashtext('workbridge.chat_jobs'))),
+                candidate_active as (select exists(select 1 from chat_jobs where candidate_id = $2 and status in ('queued', 'running')) as present),
+                queue_capacity as (select count(*)::int < $9 as available from chat_jobs where status = 'queued')
+           insert into chat_jobs
+             (job_id, candidate_id, idempotency_key, session_version, payload, status, attempts, max_attempts, trace_id, request_id)
+           select $1, $2, $3, $4, $5::jsonb, 'queued', 0, $6, $7, $8
+             from queue_lock, candidate_active, queue_capacity
+            where not candidate_active.present and queue_capacity.available
+           on conflict (candidate_id, idempotency_key) do nothing
+           returning *`,
+          [jobId, input.candidateId, input.idempotencyKey, input.sessionVersion, JSON.stringify(input.payload), input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS, input.traceId, input.requestId, CHAT_QUEUE_LIMIT],
         );
-        if (!existing.rows[0]) throw new ChatJobBackpressureError();
+        const atomicRow = atomic.rows[0];
+        if (atomicRow) return { job: mapRow(atomicRow), created: true };
+        const existing = await query('select * from chat_jobs where candidate_id = $1 and idempotency_key = $2', [input.candidateId, input.idempotencyKey]);
+        if (existing.rows[0]) return { job: mapRow(existing.rows[0]), created: false };
+        throw new ChatJobBackpressureError();
       }
       const inserted = await query(
         `insert into chat_jobs
