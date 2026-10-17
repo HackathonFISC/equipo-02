@@ -9,7 +9,7 @@
   "reviewPasses": 5,
   "plansPosted": 2,
   "implementations": ["91a1574", "41b114a"],
-  "status": "blocked",
+  "status": "awaiting-scope-review",
   "standardsFindings": 2,
   "specFindings": 4,
   "blockedBy": [
@@ -21,7 +21,7 @@
       "finding": "Parent #90 backpressure, retry backoff/jitter, and queue observability.",
       "owner": "KerubeDev",
       "followUpTicket": "#90",
-      "reason": "Out of the #91 tracer-bullet scope; issue #90 is open, assigned, and contains the original requirements."
+      "reason": "Issue #91 scope clarification explicitly defers these parent requirements to open, assigned issue #90."
     }
   ],
   "validation": {
@@ -29,5 +29,5 @@
     "result": "Code validation passed; real database integration remains blocked by unavailable network access."
   },
   "loopComment": "https://github.com/HackathonFISC/equipo-02/pull/105#issuecomment-6233185913",
-  "nextConsumer": "plan-review-fixes"
+  "nextConsumer": "review-pr against clarified issue #91 scope"
 }
