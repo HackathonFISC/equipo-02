@@ -4,6 +4,8 @@ import {
   matchSkill,
   normalizeText,
 } from "@puente/domain";
+import seedLabels from "../taxonomy/fixtures/panama-seed-labels.json";
+import escoResolution from "../taxonomy/fixtures/esco-v1.2.1-panama-resolution.json";
 
 describe("normalizeText", () => {
   it("lowercases, strips accents, and collapses punctuation", () => {
@@ -59,15 +61,24 @@ describe("ESCO taxonomy contract", () => {
   it("records the ESCO release used to resolve concept URIs", () => {
     expect(PANAMA_SKILL_TAXONOMY.escoVersion).toMatch(/^v\d+\.\d+\.\d+$/);
     expect(PANAMA_SKILL_TAXONOMY.provenance).toContain(PANAMA_SKILL_TAXONOMY.escoVersion);
+    expect(escoResolution.version).toBe(PANAMA_SKILL_TAXONOMY.escoVersion);
+    expect(escoResolution.concepts).toHaveLength(PANAMA_SKILL_TAXONOMY.skills.length);
+    expect(escoResolution.concepts.every((concept) => concept.status === "released")).toBe(true);
   });
 
   it("gives every seed skill a verified ESCO URI or an explicit unmapped reason", () => {
     for (const skill of PANAMA_SKILL_TAXONOMY.skills) {
       if (skill.escoUri === null) {
-        expect(skill.escoUnmappedReason?.trim(), `${skill.id} needs an unmapped reason`).toBeTruthy();
+        expect(skill.escoUnmappedReason.trim()).toBeTruthy();
       } else {
-        expect(skill.escoUri, skill.id).toMatch(ESCO_SKILL_URI);
-        expect(skill.escoLabel.trim(), skill.id).not.toBe("");
+        expect(skill.escoUri, `${skill.id} has an invalid ESCO URI`).toMatch(ESCO_SKILL_URI);
+        expect(skill.escoLabel.trim(), `${skill.id} has no ESCO label`).not.toBe("");
+        const resolved = escoResolution.concepts.find((concept) => concept.id === skill.id);
+        expect(resolved, `${skill.id} is missing from the pinned ESCO resolution`).toMatchObject({
+          uri: skill.escoUri,
+          label: skill.escoLabel,
+          status: "released",
+        });
       }
     }
   });
@@ -81,8 +92,23 @@ describe("ESCO taxonomy contract", () => {
 
   it("preserves the localized labels for every seed skill", () => {
     for (const skill of PANAMA_SKILL_TAXONOMY.skills) {
-      expect(skill.labelEs.trim(), skill.id).not.toBe("");
-      expect(skill.labelEn.trim(), skill.id).not.toBe("");
+      expect(skill.labelEs, `${skill.id} Spanish label changed`).toBe(seedLabels[skill.id as keyof typeof seedLabels].labelEs);
+      expect(skill.labelEn, `${skill.id} English label changed`).toBe(seedLabels[skill.id as keyof typeof seedLabels].labelEn);
     }
+  });
+
+  it("requires a reason for an unmapped skill", () => {
+    const unmappedSkill = {
+      id: "TEST-UNMAPPED",
+      labelEs: "Habilidad de prueba",
+      labelEn: "Test skill",
+      escoLabel: "",
+      escoUri: null,
+      escoUnmappedReason: "No released ESCO concept matches the seed wording.",
+      kind: "skill",
+      aliases: [],
+    };
+
+    expect(unmappedSkill.escoUnmappedReason.trim()).toBeTruthy();
   });
 });

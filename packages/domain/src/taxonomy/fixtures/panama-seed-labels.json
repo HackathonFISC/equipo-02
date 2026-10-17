@@ -1,0 +1,94 @@
+{
+  "PA-IT-0001": {
+    "labelEs": "Soporte técnico",
+    "labelEn": "Technical support"
+  },
+  "PA-IT-0002": {
+    "labelEs": "Mantenimiento de equipos de cómputo",
+    "labelEn": "Computer hardware maintenance"
+  },
+  "PA-IT-0003": {
+    "labelEs": "Redes y conectividad básica",
+    "labelEn": "Basic networking and connectivity"
+  },
+  "PA-IT-0004": {
+    "labelEs": "Sistemas operativos Windows",
+    "labelEn": "Windows operating systems"
+  },
+  "PA-OFF-0001": {
+    "labelEs": "Paquete de oficina",
+    "labelEn": "Office productivity suite"
+  },
+  "PA-OFF-0002": {
+    "labelEs": "Hoja de cálculo Excel",
+    "labelEn": "Spreadsheet software"
+  },
+  "PA-OFF-0003": {
+    "labelEs": "Digitación de datos",
+    "labelEn": "Data entry"
+  },
+  "PA-OFF-0004": {
+    "labelEs": "Gestión de agenda y correspondencia",
+    "labelEn": "Scheduling and correspondence management"
+  },
+  "PA-CS-0001": {
+    "labelEs": "Atención al cliente",
+    "labelEn": "Customer service"
+  },
+  "PA-CS-0002": {
+    "labelEs": "Manejo de caja",
+    "labelEn": "Cash handling"
+  },
+  "PA-CS-0003": {
+    "labelEs": "Ventas y cierre de ventas",
+    "labelEn": "Sales and closing"
+  },
+  "PA-CS-0004": {
+    "labelEs": "Gestión de relación con clientes (CRM)",
+    "labelEn": "Customer relationship management"
+  },
+  "PA-CS-0005": {
+    "labelEs": "Telemercadeo y centro de llamadas",
+    "labelEn": "Telemarketing and call center"
+  },
+  "PA-CS-0006": {
+    "labelEs": "Inventario y control de existencias",
+    "labelEn": "Inventory control"
+  },
+  "PA-CS-0007": {
+    "labelEs": "Punto de venta (POS)",
+    "labelEn": "Point of sale operation"
+  },
+  "PA-SOFT-0001": {
+    "labelEs": "Comunicación escrita",
+    "labelEn": "Written communication"
+  },
+  "PA-SOFT-0002": {
+    "labelEs": "Comunicación oral",
+    "labelEn": "Verbal communication"
+  },
+  "PA-SOFT-0003": {
+    "labelEs": "Trabajo en equipo",
+    "labelEn": "Teamwork"
+  },
+  "PA-SOFT-0004": {
+    "labelEs": "Resolución de problemas",
+    "labelEn": "Problem solving"
+  },
+  "PA-SOFT-0005": {
+    "labelEs": "Gestión del tiempo",
+    "labelEn": "Time management"
+  },
+  "PA-SOFT-0006": {
+    "labelEs": "Atención al detalle",
+    "labelEn": "Attention to detail"
+  },
+  "PA-LANG-0001": {
+    "labelEs": "Idioma español",
+    "labelEn": "Spanish language"
+  },
+  "PA-LANG-0002": {
+    "labelEs": "Idioma inglés",
+    "labelEn": "English language"
+  }
+}
