@@ -36,13 +36,16 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       const pending = window.sessionStorage.getItem('puente:pending-save');
       if (pending) { try { const saved = JSON.parse(pending) as { label?: unknown; preferences?: unknown }; if (typeof saved.label === 'string' && saved.preferences) { window.localStorage.setItem('puente:preferences', JSON.stringify(saved.preferences)); setSaveLabel(saved.label); setPendingSave(true); setSaveOpen(true); } } catch { /* discard malformed pending state */ } window.sessionStorage.removeItem('puente:pending-save'); }
     }
-    const candidateId = window.localStorage.getItem('puente:candidateId');
-    if (!candidateId) return;
-    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`)
+    fetch('/api/candidate')
       .then((response) => response.ok ? response.json() : null)
-      .then(async (body: { searches?: Array<{ newSinceLastVisit?: VacancyMatch[] }> } | null) => {
-        setNewMatches(body?.searches?.flatMap((view) => view.newSinceLastVisit ?? []) ?? []);
-        await fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`, { method: 'PUT' });
+      .then(async (candidate: { candidateId?: string } | null) => {
+        if (!candidate?.candidateId) return null;
+        const response = await fetch(`/api/searches?candidateId=${encodeURIComponent(candidate.candidateId)}`);
+        return response.ok ? { candidateId: candidate.candidateId, body: await response.json() } : null;
+      })
+      .then(async (result: { candidateId: string; body: { searches?: Array<{ newSinceLastVisit?: VacancyMatch[] }> } } | null) => {
+        setNewMatches(result?.body.searches?.flatMap((view) => view.newSinceLastVisit ?? []) ?? []);
+        if (result) await fetch(`/api/searches?candidateId=${encodeURIComponent(result.candidateId)}`, { method: 'PUT' });
       })
       .catch(() => undefined);
   }, []);
