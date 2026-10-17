@@ -62,12 +62,10 @@ describe("selectRoadmap", () => {
     expect(result.unresolvedGaps).toEqual([]);
   });
 
-  it("leaves a gap unresolved when its only option needs an unmet prerequisite", async () => {
+  it("selects a prerequisite-only course to unlock a dependent option", async () => {
     const result = await select([gap("PA-IT-0002", 2)], { specializations: ["it_support"] });
-    expect(await selectedIds(result)).toEqual([]);
-    expect(result.unresolvedGaps.map((item) => item.skillId)).toEqual(["PA-IT-0002"]);
-    const omitted = result.omitted.find((item) => item.ranked.opportunity.opportunityId === "TR-003");
-    expect(omitted?.reason).toContain("prerrequisitos");
+    expect(await selectedIds(result)).toEqual(["TR-003", "TR-001"]);
+    expect(result.unresolvedGaps).toEqual([]);
   });
 
   it("never selects an opportunity that conflicts with the schedule", async () => {

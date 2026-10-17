@@ -105,10 +105,7 @@ function buildRoadmapModel(
 ) {
   const eligible = ranked.filter((item) => item.eligible);
   const contributions = contributionFor(eligible, gaps);
-  const selectable = eligible.filter(
-    (item) => (contributions.get(item.opportunity.opportunityId) ?? []).length > 0,
-  );
-  const variables = selectable.map((item, index) => ({
+  const variables = eligible.map((item, index) => ({
     name: `y${index}`,
     item,
   }));
@@ -119,14 +116,15 @@ function buildRoadmapModel(
       level: gap.currentLevel + index + 1,
     })),
   );
+  const cyclic = cyclicVariableIndices(variables, heldSkills);
   const milpVariables = [
     // A tiny penalty makes the optimum canonical: do not select courses that
     // add no coverage unless they are needed as a prerequisite.
-    ...variables.map(({ name }, index) => ({
+    ...variables.map(({ name, item }, index) => ({
       name,
-      cost: -0.0001,
+      cost: -(item.score / 1_000_000 + (1 - item.rank / Math.max(1, ranked.length)) / 1_000_000_000),
       lower: 0,
-      upper: cyclicVariableIndices(variables, heldSkills).has(index) ? 0 : 1,
+      upper: cyclic.has(index) ? 0 : 1,
       integer: true,
     })),
     ...coverageVariables.map(({ name }) => ({ name, cost: 1, lower: 0, upper: 1, integer: true })),
@@ -226,15 +224,13 @@ function finishSelection(
 ): SelectionResult {
   const levels = new Map(gaps.map((gap) => [gap.skillId, gap.currentLevel]));
   for (const item of selected) {
-    item.contributions = gaps.flatMap((gap) => {
-      const added = Math.max(0, Math.min(
-        coveredSkillLevel(item.ranked.opportunity, gap.skillId) - (levels.get(gap.skillId) ?? 0),
-        gap.requiredLevel - (levels.get(gap.skillId) ?? 0),
-      ));
-      if (added <= 0) return [];
-      levels.set(gap.skillId, Math.min(4, (levels.get(gap.skillId) ?? 0) + added) as TrainingGap["currentLevel"]);
-      return [{ skillId: gap.skillId, addedLevel: added }];
-    });
+    item.contributions = contributionsAtLevels(item.ranked, gaps, levels);
+    for (const contribution of item.contributions) {
+      levels.set(
+        contribution.skillId,
+        Math.min(4, (levels.get(contribution.skillId) ?? 0) + contribution.addedLevel) as TrainingGap["currentLevel"],
+      );
+    }
   }
   const unresolvedGaps = gaps.filter((gap) => (levels.get(gap.skillId) ?? 0) < gap.requiredLevel);
   const chosen = new Set(selected.map(({ ranked: item }) => item.opportunity.opportunityId));
@@ -258,19 +254,56 @@ function greedyFallback(
   let hours = preferences.maxTotalHours ?? Number.POSITIVE_INFINITY;
   const chosen = new Set<string>();
   const levels = new Map(gaps.map((gap) => [gap.skillId, gap.currentLevel]));
-  const canPrereq = (item: RankedOpportunity) => item.opportunity.prerequisites.every((skill) => heldSkillLevel(heldSkills, skill) >= 1 || (levels.get(skill) ?? 0) >= 1);
+  const prerequisiteClosure = (
+    item: RankedOpportunity,
+    visiting: ReadonlySet<string> = new Set(),
+  ): RankedOpportunity[] | null => {
+    if (visiting.has(item.opportunity.opportunityId)) return null;
+    const nextVisiting = new Set(visiting).add(item.opportunity.opportunityId);
+    const providers: RankedOpportunity[] = [];
+    for (const skill of item.opportunity.prerequisites) {
+      if (heldSkillLevel(heldSkills, skill) >= 1 || (levels.get(skill) ?? 0) >= 1) continue;
+      const provider = ranked.find((candidate) =>
+        candidate.eligible &&
+        candidate.opportunity.opportunityId !== item.opportunity.opportunityId &&
+        coveredSkillLevel(candidate.opportunity, skill) >= 1,
+      );
+      if (!provider) return null;
+      const nested = prerequisiteClosure(provider, nextVisiting);
+      if (nested === null) return null;
+      providers.push(...nested, provider);
+    }
+    return providers;
+  };
   while (true) {
     const candidate = ranked
-      .filter((item) => item.eligible && !chosen.has(item.opportunity.opportunityId) && item.opportunity.costUsd <= budget && item.opportunity.durationHours <= hours && canPrereq(item))
-      .map((item) => ({ item, contributions: contributionsAtLevels(item, gaps, levels) }))
+      .filter((item) => item.eligible && !chosen.has(item.opportunity.opportunityId))
+      .map((item) => {
+        const closure = prerequisiteClosure(item);
+        if (closure === null) return null;
+        const required = [...closure, item].filter((entry, index, all) => all.findIndex((candidate) => candidate.opportunity.opportunityId === entry.opportunity.opportunityId) === index);
+        return { item, required, contributions: contributionsAtLevels(item, gaps, levels) };
+      })
+      .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
+      .filter(({ required, contributions }) =>
+        contributions.length > 0 &&
+        required.every((entry) => !chosen.has(entry.opportunity.opportunityId)) &&
+        required.reduce((sum, entry) => sum + entry.opportunity.costUsd, 0) <= budget &&
+        required.reduce((sum, entry) => sum + entry.opportunity.durationHours, 0) <= hours,
+      )
       .filter(({ contributions }) => contributions.length > 0)
       .sort((a, b) => (b.contributions.reduce((n, c) => n + c.addedLevel, 0) - a.contributions.reduce((n, c) => n + c.addedLevel, 0)) || b.item.score - a.item.score || compareCodeUnits(a.item.opportunity.opportunityId, b.item.opportunity.opportunityId))[0];
     if (!candidate) break;
     chosen.add(candidate.item.opportunity.opportunityId);
-    budget -= candidate.item.opportunity.costUsd;
-    hours -= candidate.item.opportunity.durationHours;
-    selected.push({ ranked: candidate.item, contributions: candidate.contributions });
-    for (const contribution of candidate.contributions) levels.set(contribution.skillId, Math.min(4, (levels.get(contribution.skillId) ?? 0) + contribution.addedLevel) as TrainingGap["currentLevel"]);
+    const required = [...candidate.required].sort((a, b) => a.rank - b.rank);
+    for (const item of required) {
+      budget -= item.opportunity.costUsd;
+      hours -= item.opportunity.durationHours;
+      const itemContributions = contributionsAtLevels(item, gaps, levels);
+      selected.push({ ranked: item, contributions: itemContributions });
+      for (const contribution of itemContributions) levels.set(contribution.skillId, Math.min(4, (levels.get(contribution.skillId) ?? 0) + contribution.addedLevel) as TrainingGap["currentLevel"]);
+      chosen.add(item.opportunity.opportunityId);
+    }
   }
   return finishSelection(ranked, gaps, heldSkills, selected);
 }
