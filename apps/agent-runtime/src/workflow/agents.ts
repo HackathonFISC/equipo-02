@@ -190,11 +190,17 @@ export async function runAgent(
   }
 
   const prompt = promptFor(agent, carrier);
+  let matchingActive = false;
   try {
-  if (agent === "market_and_matching" && services.matching && services.matchingInput) {
-    const suppliedInput = await services.matchingInput(carrier);
+  const suppliedInput = agent === "market_and_matching"
+    ? services.matchingInput
+      ? await services.matchingInput(carrier)
+      : carrier.matchingInput
+    : undefined;
+  if (agent === "market_and_matching" && services.matching && suppliedInput) {
+    matchingActive = true;
     const nomination = await services.matching.nominateForCandidate({
-      ...suppliedInput,
+      ...(suppliedInput as CandidateNominationInput),
       now: () => new Date(services.clock()),
     });
     const summary = JSON.stringify({
@@ -298,7 +304,7 @@ export async function runAgent(
       status: agent === "training" ? "success" : carrier.status,
     };
   } catch (error) {
-    if (agent === "market_and_matching" && services.matching && services.matchingInput) {
+    if (agent === "market_and_matching" && services.matching && matchingActive) {
       const message = error instanceof Error ? error.message : String(error);
       move(services, dqlId, "failed", message);
       move(services, dqlId, "dead_letter", message);

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { WorkflowRunRequest } from "@puente/domain";
 import { CAPABILITY_CHAINS } from "../models";
 import { createWorkflowRuntime } from "../graph";
-import { MatchingService, matchingConfigFromEnv } from "../../matching";
 import {
   candidateProfile,
   CANDIDATE_CONTEXT,
@@ -83,27 +82,22 @@ describe("employability workflow", () => {
 
   it("uses the deterministic solver for market matching when validated input is supplied", async () => {
     const calls: string[] = [];
-    const config = matchingConfigFromEnv({});
+    const matchingInput = {
+      profile: candidateProfile(),
+      context: CANDIDATE_CONTEXT,
+      vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
+      now,
+    };
     const engine = createWorkflowRuntime({
       clock: () => "2026-10-16T12:00:00.000Z",
       complete: async (modelId) => {
         calls.push(modelId);
         return { text: "Plan de practica en caja" };
       },
-      matching: new MatchingService({
-        routing: config.routing,
-        geocoding: config.geocoding,
-        warnings: config.warnings,
-      }),
-      matchingInput: async () => ({
-        profile: candidateProfile(),
-        context: CANDIDATE_CONTEXT,
-        vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
-        now,
-      }),
+      matchingEnv: {},
     });
 
-    const result = await engine.run(request());
+    const result = await engine.run(request({ matchingInput }));
     const matching = result.agents.find((agent) => agent.agent === "market_and_matching");
     expect(matching?.summary).toContain('"candidateId"');
     expect(calls).toHaveLength(3);

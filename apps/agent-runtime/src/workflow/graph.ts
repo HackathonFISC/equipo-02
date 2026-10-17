@@ -69,6 +69,7 @@ function toCarrier(input: WorkflowRunRequest): Carrier {
     actorId: input.actor.id,
     actorRole: input.actor.role,
     requestedTools: [...input.requestedTools],
+    ...(input.matchingInput ? { matchingInput: input.matchingInput } : {}),
     halted: false,
     status: "running",
     findings: [],
