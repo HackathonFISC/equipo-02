@@ -3,6 +3,7 @@ import { savedSearchesStore, type SavedSearch } from './saved-searches-store';
 import { neon } from '@neondatabase/serverless';
 import { preferencesStore } from './preferences-store';
 import { profileStore } from './profile-store';
+import { vacancyVisitsStore } from './vacancy-visits-store';
 
 export function persistenceMode(env: NodeJS.ProcessEnv = process.env): 'neon' | 'memory' {
   return env.PUENTE_PERSISTENCE === 'memory' ? 'memory' : 'neon';
@@ -87,12 +88,12 @@ export async function readSavedSearches(candidateId: string): Promise<SavedSearc
 }
 
 export async function markCandidateVacancyVisit(candidateId: string, visitedAt = new Date().toISOString()): Promise<void> {
-  if (persistenceMode() === 'memory') return;
+  if (persistenceMode() === 'memory') { vacancyVisitsStore.mark(candidateId, visitedAt); return; }
   await database()`insert into candidate_vacancy_visits (candidate_id, visited_at) values (${candidateId}, ${visitedAt}::timestamptz) on conflict (candidate_id) do update set visited_at = excluded.visited_at`;
 }
 
 export async function readCandidateVacancyVisit(candidateId: string): Promise<string | undefined> {
-  if (persistenceMode() === 'memory') return undefined;
+  if (persistenceMode() === 'memory') return vacancyVisitsStore.get(candidateId);
   const rows = await database()`select visited_at from candidate_vacancy_visits where candidate_id = ${candidateId}`;
   return (rows[0] as { visited_at?: string } | undefined)?.visited_at;
 }

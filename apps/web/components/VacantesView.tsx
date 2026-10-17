@@ -34,7 +34,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('save') === '1') {
       const pending = window.sessionStorage.getItem('puente:pending-save');
-      if (pending) { setSaveLabel(JSON.parse(pending).label ?? ''); setPendingSave(true); setSaveOpen(true); window.sessionStorage.removeItem('puente:pending-save'); }
+      if (pending) { try { const saved = JSON.parse(pending) as { label?: unknown; preferences?: unknown }; if (typeof saved.label === 'string' && saved.preferences) { window.localStorage.setItem('puente:preferences', JSON.stringify(saved.preferences)); setSaveLabel(saved.label); setPendingSave(true); setSaveOpen(true); } } catch { /* discard malformed pending state */ } window.sessionStorage.removeItem('puente:pending-save'); }
     }
     const candidateId = window.localStorage.getItem('puente:candidateId');
     if (!candidateId) return;
@@ -56,7 +56,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
     if (!rawPreferences) return;
     const response = await fetch('/api/searches', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ label: saveLabel, preferences: JSON.parse(rawPreferences) }) });
     if (response.status === 401) {
-      window.sessionStorage.setItem('puente:pending-save', JSON.stringify({ label: saveLabel }));
+      window.sessionStorage.setItem('puente:pending-save', JSON.stringify({ label: saveLabel, preferences: JSON.parse(rawPreferences) }));
       window.location.href = `/ingresar?next=${encodeURIComponent('/vacantes?save=1')}`;
       return;
     }
