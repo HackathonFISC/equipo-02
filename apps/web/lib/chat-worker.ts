@@ -50,6 +50,7 @@ async function settle(
     return { outcome: 'retried', jobId: job.jobId };
   }
   await jobs.fail(job.jobId, error, job.leaseOwner);
+  observeChatJob('dead_letter');
   log({ event: 'chat_job_failed', jobId: job.jobId, attempts: job.attempts, code: error.code });
   return { outcome: 'failed', jobId: job.jobId };
 }
@@ -177,6 +178,5 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
     );
   }
   observeChatJob('worker_error');
-  observeChatJob('dead_letter');
   return settle(jobs, job, { code: 'chat_execution_failed', message: 'The chat turn could not be completed.', retryable: true }, safeLog);
 }
