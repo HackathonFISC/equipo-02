@@ -2,6 +2,7 @@ import { EXCLUSION_LABELS, type ExplorationResult, type NoMatchCause } from '@pu
 import type { Roadmap } from '@puente/training';
 import { NearMatchList } from './NearMatchList';
 import { RoadmapList } from './RoadmapList';
+import Link from 'next/link';
 
 function CauseList({ causes }: { causes: NoMatchCause[] }) {
   if (causes.length === 0) return null;
@@ -25,6 +26,11 @@ export function NoMatchPanel({ result, roadmap }: { result: ExplorationResult; r
       <CauseList causes={result.noMatch.causes} />
       <NearMatchList nearMatches={result.noMatch.nearMatches} />
       {roadmap ? <RoadmapList roadmap={roadmap} gaps={roadmap.gaps} /> : null}
+      {result.noMatch.roadmapRequested ? (
+        <p className="no-match-route-link">
+          <Link href="/ruta">Ver mi ruta de capacitación</Link>
+        </p>
+      ) : null}
     </div>
   );
 }

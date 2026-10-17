@@ -1,11 +1,14 @@
 'use client';
 
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import type { ExplorationResult, NearMatch, VacancyMatch } from '@puente/catalog';
+import type { ExplorationResult, VacancyMatch } from '@puente/catalog';
 import { MODALITY_LABELS } from '@puente/catalog';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Skeleton } from './ui/skeleton';
+import type { Roadmap } from '@puente/training';
+import { NoMatchPanel } from './exploration/NoMatchPanel';
+import { readExplorationSession } from '../lib/exploration-session';
 
 export interface VacantesViewProps {
   result?: ExplorationResult | null;
@@ -20,10 +23,21 @@ const money = (min: number | null, max: number | null) => {
 };
 
 export function VacantesView({ result = null, loading = false }: VacantesViewProps) {
+  const [sessionResult, setSessionResult] = useState<ExplorationResult | null>(result);
+  const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
-  const matches = result?.matches ?? [];
+  useEffect(() => {
+    const session = readExplorationSession();
+    if (session) {
+      setSessionResult(session.result);
+      setRoadmap(session.roadmap);
+    }
+  }, []);
+
+  const displayedResult = result ?? sessionResult;
+  const matches = displayedResult?.matches ?? [];
   const selected = matches.find((match) => match.vacancy.jobId === selectedId) ?? null;
 
   useEffect(() => {
@@ -66,12 +80,12 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
     {notice ? <div className="toast-notice" role="status">{notice}</div> : null}
     <div className="vacantes-heading">
       <div><p className="eyebrow">Explora oportunidades</p><h1>Vacantes para ti</h1><p className="lead">Encontramos oportunidades que se ajustan a lo que buscas.</p></div>
-      <span className="vacantes-count">{result?.summary.matched ?? 0} compatibles</span>
+       <span className="vacantes-count">{displayedResult?.summary.matched ?? 0} compatibles</span>
     </div>
     {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <Skeleton key={id} className="vacancy-skeleton" />)}</div> : <>
       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
-      {result?.noMatch?.nearMatches.length ? <NearMatches matches={result.noMatch.nearMatches} /> : null}
-      {result?.excluded.length ? <p className="excluded-summary"><strong>{result.excluded.length} vacantes excluidas</strong> · {topCauses(result.excluded)}</p> : null}
+       {displayedResult?.noMatch ? <NoMatchPanel result={displayedResult} roadmap={roadmap} /> : null}
+       {displayedResult?.excluded.length ? <p className="excluded-summary"><strong>{displayedResult.excluded.length} vacantes excluidas</strong> · {topCauses(displayedResult.excluded)}</p> : null}
     </>}
     <VacancyDetail match={selected} open={Boolean(selected)} onClose={close} />
   </main>;
@@ -88,7 +102,6 @@ const VacancyCard = forwardRef<HTMLButtonElement, { match: VacancyMatch; onOpen:
 });
 VacancyCard.displayName = 'VacancyCard';
 
-function NearMatches({ matches }: { matches: NearMatch[] }) { return <section className="near-matches" aria-labelledby="near-heading"><h2 id="near-heading">Casi listas para ti</h2><div className="near-list">{matches.map(({ vacancy, warnings }) => <article key={vacancy.jobId}><strong>{vacancy.title}</strong><p>{warnings[0] ?? 'Hay un requisito que todavía bloquea esta vacante.'}</p></article>)}</div></section>; }
 function topCauses(excluded: NonNullable<ExplorationResult['excluded']>) { return excluded.flatMap((item) => item.failedConstraints.map((cause) => cause.detail)).slice(0, 3).join(' · '); }
 
 function VacancyDetail({ match, open, onClose }: { match: VacancyMatch | null; open: boolean; onClose: () => void }) {

@@ -16,6 +16,7 @@ import { PreferencesForm, type PreferencesFormState } from './exploration/Prefer
 import { SavedSearches } from './exploration/SavedSearches';
 import { VacancyList } from './exploration/VacancyList';
 import { timeToMinutes } from './exploration/utils';
+import { saveExplorationSession } from '../lib/exploration-session';
 
 const INITIAL_FORM: PreferencesFormState = {
   targetRoles: 'Atención al cliente',
@@ -100,14 +101,17 @@ export function ExplorationDashboard() {
     try {
       const explored = await exploreMutation.mutateAsync(buildPayload(form));
       setResult(explored);
+      let generatedRoadmap: Roadmap | null = null;
       if (explored.noMatch?.roadmapRequested) {
         try {
           const body = await roadmapMutation.mutateAsync(explored);
-          setRoadmap(body.roadmap);
+          generatedRoadmap = body.roadmap;
+          setRoadmap(generatedRoadmap);
         } catch {
           // The roadmap is advisory; a failure leaves the no-match explanation intact.
         }
       }
+      saveExplorationSession(explored, generatedRoadmap);
       void queryClient.invalidateQueries({ queryKey: searchesQueryKey(explored.candidateId) });
     } catch (error) {
       setResult(null);
