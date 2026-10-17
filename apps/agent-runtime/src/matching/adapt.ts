@@ -10,6 +10,7 @@ import {
 import type { MatchDecision as ApplicationMatchDecision } from "@puente/domain";
 import type {
   CandidateAvailability,
+  MatchDecision,
   CandidateSkillSignal,
   CandidateTransport,
   EvidenceSource,
@@ -20,7 +21,6 @@ import type {
   SolverVacancy,
   VacancyRequirement,
   VacancySchedule,
-  MatchDecision,
 } from "@puente/solver";
 import { getRankableRequirements } from "../vacancy/ranking";
 
