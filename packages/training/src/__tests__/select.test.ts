@@ -108,4 +108,33 @@ describe("selectRoadmap", () => {
     expect(result.selected).toEqual([]);
     expect(result.unresolvedGaps).toEqual(gaps);
   });
+
+  it("preserves prerequisite skills when the deterministic fallback is used", async () => {
+    const provider = {
+      ...catalog.opportunities[0]!,
+      opportunityId: "FALLBACK-PROVIDER",
+      coveredSkills: [
+        { skillId: "FALLBACK-GAP-ONE", level: 1 as const },
+        { skillId: "FALLBACK-PREREQUISITE", level: 1 as const },
+      ],
+      prerequisites: [],
+    };
+    const dependent = {
+      ...catalog.opportunities[1]!,
+      opportunityId: "FALLBACK-DEPENDENT",
+      coveredSkills: [{ skillId: "FALLBACK-GAP-TWO", level: 1 as const }],
+      prerequisites: ["FALLBACK-PREREQUISITE"],
+    };
+    const fallbackCatalog: TrainingCatalog = { ...catalog, opportunities: [provider, dependent] };
+    const gaps = [gap("FALLBACK-GAP-ONE", 1), gap("FALLBACK-GAP-TWO", 1)];
+    const ranked = await rankOpportunities({ catalog: fallbackCatalog, gaps, preferences: { specializations: [] }, now });
+    const result = await selectRoadmap(ranked, gaps, { specializations: [] }, [], {
+      name: "forced-fallback",
+      solve: async () => ({ status: "infeasible", objectiveValue: null, values: {} }),
+    });
+    expect(result.selected.map((item) => item.ranked.opportunity.opportunityId)).toEqual([
+      "FALLBACK-PROVIDER",
+      "FALLBACK-DEPENDENT",
+    ]);
+  });
 });

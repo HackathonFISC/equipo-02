@@ -295,13 +295,16 @@ function greedyFallback(
       .sort((a, b) => (b.contributions.reduce((n, c) => n + c.addedLevel, 0) - a.contributions.reduce((n, c) => n + c.addedLevel, 0)) || b.item.score - a.item.score || compareCodeUnits(a.item.opportunity.opportunityId, b.item.opportunity.opportunityId))[0];
     if (!candidate) break;
     chosen.add(candidate.item.opportunity.opportunityId);
-    const required = [...candidate.required].sort((a, b) => a.rank - b.rank);
+    const required = candidate.required;
     for (const item of required) {
       budget -= item.opportunity.costUsd;
       hours -= item.opportunity.durationHours;
       const itemContributions = contributionsAtLevels(item, gaps, levels);
       selected.push({ ranked: item, contributions: itemContributions });
       for (const contribution of itemContributions) levels.set(contribution.skillId, Math.min(4, (levels.get(contribution.skillId) ?? 0) + contribution.addedLevel) as TrainingGap["currentLevel"]);
+      for (const skill of item.opportunity.coveredSkills) {
+        levels.set(skill.skillId, Math.max(levels.get(skill.skillId) ?? 0, skill.level) as TrainingGap["currentLevel"]);
+      }
       chosen.add(item.opportunity.opportunityId);
     }
   }
