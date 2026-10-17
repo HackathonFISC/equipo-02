@@ -18,7 +18,7 @@
     "skipped": [],
     "notes": "486 tests passed; coverage is 93.57% lines and 80.37% branches."
   },
-  "commitSha": "a definir tras el commit de implementación",
+  "commitSha": "f7392ce",
   "branch": "feat/issue-23-training-roadmap-milp-routing-schema",
   "nextConsumer": "publish-open-pr",
   "riskRemaining": "The default routing mode for training geography is driving; callers that need another mode must provide a routing adapter."
