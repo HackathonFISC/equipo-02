@@ -98,7 +98,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       jobs,
       job,
       { code: 'persistence_unavailable', message: 'The chat session store is unavailable.', retryable: true },
-      log,
+      safeLog,
     );
   }
   if (currentVersion > job.sessionVersion) {
@@ -116,7 +116,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       jobs,
       job,
       { code: 'session_version_pending', message: 'An earlier chat turn must complete first.', retryable: true },
-      log,
+      safeLog,
     );
   }
 
@@ -128,7 +128,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       jobs,
       job,
       { code: 'persistence_unavailable', message: 'The chat session store is unavailable.', retryable: true },
-      log,
+      safeLog,
     );
   }
 
@@ -141,7 +141,9 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       context,
     }));
   } catch (cause) {
-    return settle(jobs, job, executionFailure(cause), log);
+    observeChatJob('worker_error');
+    if (cause instanceof Error && /timeout/i.test(cause.message)) observeChatJob('provider_timeout');
+    return settle(jobs, job, executionFailure(cause), safeLog);
   }
 
   if (status === 200) {
@@ -164,15 +166,16 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
     return { outcome: 'succeeded', jobId: job.jobId };
   }
   if (status === 400) {
-    return settle(jobs, job, { code: 'invalid_chat_request', message: 'The queued chat action is invalid.', retryable: false }, log);
+    return settle(jobs, job, { code: 'invalid_chat_request', message: 'The queued chat action is invalid.', retryable: false }, safeLog);
   }
   if (status === 409) {
     return settle(
       jobs,
       job,
       { code: 'session_version_conflict', message: 'The chat session changed before this turn was applied.', retryable: false },
-      log,
+      safeLog,
     );
   }
-  return settle(jobs, job, { code: 'chat_execution_failed', message: 'The chat turn could not be completed.', retryable: true }, log);
+  observeChatJob('worker_error');
+  return settle(jobs, job, { code: 'chat_execution_failed', message: 'The chat turn could not be completed.', retryable: true }, safeLog);
 }

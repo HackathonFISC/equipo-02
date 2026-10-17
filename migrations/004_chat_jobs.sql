@@ -37,3 +37,4 @@ alter table chat_jobs add column if not exists next_attempt_at timestamptz;
 create unique index if not exists chat_jobs_idempotency_idx on chat_jobs (candidate_id, idempotency_key);
 create index if not exists chat_jobs_claim_idx on chat_jobs (status, created_at);
 create index if not exists chat_jobs_candidate_status_idx on chat_jobs (candidate_id, status);
+create unique index if not exists chat_jobs_one_active_candidate_idx on chat_jobs (candidate_id) where status in ('queued', 'running');

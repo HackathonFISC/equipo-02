@@ -64,6 +64,8 @@ export class ChatJobBackpressureError extends Error {
   constructor() { super('chat_job_backpressure'); this.name = 'ChatJobBackpressureError'; }
 }
 
+const isActiveJob = (job: ChatJob): boolean => job.status === 'queued' || job.status === 'running';
+
 export interface ClaimChatJobOptions {
   leaseOwner: string;
   leaseMs: number;
@@ -106,8 +108,8 @@ export function createInMemoryChatJobStore(): ChatJobStore {
         const existing = jobs.get(existingId);
         if (existing) return { job: clone(existing), created: false };
       }
-      if (input.enforceAdmission && [...jobs.values()].filter((candidate) => candidate.status === 'queued' || candidate.status === 'running').length >= CHAT_QUEUE_LIMIT) throw new ChatJobBackpressureError();
-      if (input.enforceAdmission && [...jobs.values()].some((candidate) => candidate.candidateId === input.candidateId && (candidate.status === 'queued' || candidate.status === 'running'))) {
+      if (input.enforceAdmission && [...jobs.values()].filter((candidate) => candidate.status === 'queued').length >= CHAT_QUEUE_LIMIT) throw new ChatJobBackpressureError();
+      if (input.enforceAdmission && [...jobs.values()].some((candidate) => candidate.candidateId === input.candidateId && isActiveJob(candidate))) {
         throw new ChatJobBackpressureError();
       }
       const now = new Date().toISOString();
@@ -126,7 +128,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
         updatedAt: now,
       };
       jobs.set(job.jobId, job);
-      observeChatQueue({ queueDepth: [...jobs.values()].filter((candidate) => candidate.status === 'queued' || candidate.status === 'running').length });
+      observeChatQueue({ queueDepth: [...jobs.values()].filter((candidate) => candidate.status === 'queued').length, oldestJobAgeSeconds: 0 });
       admissionOrder.set(job.jobId, nextAdmissionOrder++);
       idempotency.set(key(job.candidateId, job.idempotencyKey), job.jobId);
       return { job: clone(job), created: true };
@@ -267,7 +269,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
         [input.candidateId],
       ) : { rows: [] };
       if (input.enforceAdmission && !active.rows[0]) {
-        const total = await query("select count(*)::int as count from chat_jobs where status in ('queued', 'running')", []);
+        const total = await query("select count(*)::int as count from chat_jobs where status = 'queued'", []);
         if (Number(total.rows[0]?.count ?? 0) >= CHAT_QUEUE_LIMIT) throw new ChatJobBackpressureError();
       }
       if (active.rows[0]) {
