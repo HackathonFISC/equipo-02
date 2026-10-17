@@ -16,7 +16,10 @@ import type { SavedSearchView } from '../lib/saved-searches-store';
 import type { PreferencesDraft } from '../lib/preferences';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const DAY_LABELS: Array<{ value: number; label: string }> = [
   { value: 1, label: 'Lun' },
@@ -237,8 +240,8 @@ export function ExplorationDashboard() {
       </p>
       <form onSubmit={onSubmit} noValidate>
         <div className="field">
-          <label htmlFor="pref-roles">Puestos objetivo (separados por coma)</label>
-          <input
+          <Label htmlFor="pref-roles">Puestos objetivo (separados por coma)</Label>
+          <Input
             id="pref-roles"
             type="text"
             value={targetRoles}
@@ -249,33 +252,34 @@ export function ExplorationDashboard() {
 
         <div className="field-row">
           <div className="field">
-            <label htmlFor="pref-modality">Modalidad</label>
-            <select
-              id="pref-modality"
-              value={modality}
-              onChange={(event) => setModality(event.target.value as WorkModality)}
-            >
-              {MODALITY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="pref-modality">Modalidad</Label>
+            <Select value={modality} onValueChange={(value) => setModality(value as WorkModality)}>
+              <SelectTrigger id="pref-modality">
+                <SelectValue placeholder="Selecciona una modalidad" />
+              </SelectTrigger>
+              <SelectContent>
+                {MODALITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="field">
-            <label htmlFor="pref-province">Provincia</label>
-            <input id="pref-province" type="text" value={province} onChange={(event) => setProvince(event.target.value)} />
+            <Label htmlFor="pref-province">Provincia</Label>
+            <Input id="pref-province" type="text" value={province} onChange={(event) => setProvince(event.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="pref-district">Distrito</label>
-            <input id="pref-district" type="text" value={district} onChange={(event) => setDistrict(event.target.value)} />
+            <Label htmlFor="pref-district">Distrito</Label>
+            <Input id="pref-district" type="text" value={district} onChange={(event) => setDistrict(event.target.value)} />
           </div>
         </div>
 
         <div className="field-row">
           <div className="field">
-            <label htmlFor="pref-travel">Traslado máximo (minutos)</label>
-            <input
+            <Label htmlFor="pref-travel">Traslado máximo (minutos)</Label>
+            <Input
               id="pref-travel"
               type="number"
               min={0}
@@ -285,8 +289,8 @@ export function ExplorationDashboard() {
             />
           </div>
           <div className="field">
-            <label htmlFor="pref-budget">Presupuesto de transporte (USD/mes)</label>
-            <input
+            <Label htmlFor="pref-budget">Presupuesto de transporte (USD/mes)</Label>
+            <Input
               id="pref-budget"
               type="number"
               min={0}
@@ -295,8 +299,8 @@ export function ExplorationDashboard() {
             />
           </div>
           <div className="field">
-            <label htmlFor="pref-salary">Salario mínimo (USD/mes)</label>
-            <input
+            <Label htmlFor="pref-salary">Salario mínimo (USD/mes)</Label>
+            <Input
               id="pref-salary"
               type="number"
               min={0}
@@ -311,10 +315,9 @@ export function ExplorationDashboard() {
           <div className="checkbox-group">
             {DAY_LABELS.map((day) => (
               <label key={day.value}>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={days.includes(day.value)}
-                  onChange={() => toggle(days, day.value, setDays)}
+                  onCheckedChange={() => toggle(days, day.value, setDays)}
                 />
                 {day.label}
               </label>
@@ -324,16 +327,16 @@ export function ExplorationDashboard() {
 
         <div className="field-row">
           <div className="field">
-            <label htmlFor="pref-start">Hora de inicio</label>
-            <input id="pref-start" type="time" value={start} onChange={(event) => setStart(event.target.value)} />
+            <Label htmlFor="pref-start">Hora de inicio</Label>
+            <Input id="pref-start" type="time" value={start} onChange={(event) => setStart(event.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="pref-end">Hora de fin</label>
-            <input id="pref-end" type="time" value={end} onChange={(event) => setEnd(event.target.value)} />
+            <Label htmlFor="pref-end">Hora de fin</Label>
+            <Input id="pref-end" type="time" value={end} onChange={(event) => setEnd(event.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="pref-weekly">Horas semanales</label>
-            <input
+            <Label htmlFor="pref-weekly">Horas semanales</Label>
+            <Input
               id="pref-weekly"
               type="number"
               min={0}
@@ -349,10 +352,9 @@ export function ExplorationDashboard() {
           <div className="checkbox-group">
             {CONTRACT_OPTIONS.map((option) => (
               <label key={option.value}>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={contracts.includes(option.value)}
-                  onChange={() => toggle(contracts, option.value, setContracts)}
+                  onCheckedChange={() => toggle(contracts, option.value, setContracts)}
                 />
                 {option.label}
               </label>
@@ -365,10 +367,9 @@ export function ExplorationDashboard() {
           <div className="checkbox-group">
             {TRANSPORT_OPTIONS.map((option) => (
               <label key={option.value}>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={modes.includes(option.value)}
-                  onChange={() => toggle(modes, option.value, setModes)}
+                  onCheckedChange={() => toggle(modes, option.value, setModes)}
                 />
                 {option.label}
               </label>
@@ -380,11 +381,11 @@ export function ExplorationDashboard() {
           <legend>Disposición</legend>
           <div className="checkbox-group">
             <label>
-              <input type="checkbox" checked={willingTrain} onChange={(event) => setWillingTrain(event.target.checked)} />
+              <Checkbox checked={willingTrain} onCheckedChange={(checked) => setWillingTrain(checked === true)} />
               Dispuesto a tomar cursos
             </label>
             <label>
-              <input type="checkbox" checked={willingIntern} onChange={(event) => setWillingIntern(event.target.checked)} />
+              <Checkbox checked={willingIntern} onCheckedChange={(checked) => setWillingIntern(checked === true)} />
               Dispuesto a hacer pasantías
             </label>
           </div>
@@ -663,7 +664,7 @@ function SavedSearchesPanel({
       </p>
       <div className="field-row">
         <div className="field">
-          <label htmlFor="search-label">Nombre de la búsqueda</label>
+          <Label htmlFor="search-label">Nombre de la búsqueda</Label>
           <Input
             id="search-label"
             type="text"

@@ -248,7 +248,7 @@
 
   .result,
   .warning-panel {
-    @apply border-border bg-background/50;
+    @apply border-border;
     margin-top: 1.5rem;
     border: 1px solid var(--border);
     border-radius: 0.75rem;
@@ -256,15 +256,15 @@
   }
 
   .warning-panel {
-    border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
-    background: color-mix(in srgb, var(--warning) 8%, var(--background));
+    border-color: var(--warning);
+    background: var(--background);
   }
 
   .error {
     margin-top: 1rem;
     border: 1px solid var(--danger);
     border-radius: 0.75rem;
-    background: color-mix(in srgb, var(--danger) 10%, var(--background));
+    background: var(--background);
     color: var(--danger);
     padding: 0.75rem 1rem;
   }
@@ -287,13 +287,13 @@
 
   .badge.review {
     border-color: var(--warning);
-    background: color-mix(in srgb, var(--warning) 12%, var(--background));
+    background: var(--background);
     color: var(--warning);
   }
 
   .badge.ok {
     border-color: var(--success);
-    background: color-mix(in srgb, var(--success) 12%, var(--background));
+    background: var(--background);
     color: var(--success);
   }
 

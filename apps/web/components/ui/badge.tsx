@@ -6,10 +6,10 @@ const badgeVariants = cva('inline-flex items-center rounded-full border px-2.5 p
   variants: {
     tone: {
       neutral: 'border-border bg-muted text-foreground',
-      success: 'border-success/50 bg-success/10 text-success',
-      warning: 'border-warning/50 bg-warning/10 text-warning',
-      danger: 'border-danger/50 bg-danger/10 text-danger',
-      accent: 'border-coral/50 bg-coral/10 text-accent-foreground',
+      success: 'border-success bg-background text-success',
+      warning: 'border-warning bg-background text-warning',
+      danger: 'border-danger bg-background text-danger',
+      accent: 'border-coral-ink bg-coral-tint text-coral-ink',
     },
   },
   defaultVariants: { tone: 'neutral' },
