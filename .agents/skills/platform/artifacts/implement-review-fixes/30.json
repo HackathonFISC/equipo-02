@@ -3,13 +3,13 @@
   "pr": 30,
   "fixedPoint": "main",
   "branch": "feat/issue-23-training-roadmap-milp-routing-schema",
-  "commitSha": "dd78d89",
+  "commitSha": "49a2b89",
   "completedItems": [
     "Made prerequisite cycle feasibility explicit in the MILP model.",
     "Forwarded the injected routing port through the production roadmap handler.",
     "Excluded routed opportunities that exceed maxCommuteMinutes.",
     "Shared dynamic gap-contribution logic between selection paths.",
-    "Added regression coverage for commute ceilings and cyclic prerequisites."
+    "Added regression coverage for commute ceilings, cyclic prerequisites, and prerequisite-only chains."
   ],
   "validation": {
     "commands": [
@@ -17,7 +17,7 @@
       "npm run typecheck",
       "npm run lint"
     ],
-    "result": "32 targeted tests passed; typecheck and lint passed.",
+    "result": "488 full-suite tests passed; typecheck, lint, and coverage gate passed.",
     "skipped": []
   },
   "remainingBlockers": [],
