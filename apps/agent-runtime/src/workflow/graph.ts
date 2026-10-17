@@ -230,7 +230,13 @@ export class WorkflowRuntime {
         ...(carrier.roadmapResult ? { roadmap: carrier.roadmapResult } : {}),
       };
       this.lastIngestion = this.traces.flush();
-      if (this.langfuse) await this.langfuse.ingest(this.lastIngestion);
+      if (this.langfuse) {
+        try {
+          await this.langfuse.ingest(this.lastIngestion);
+        } catch {
+          // Best-effort: a Langfuse failure must not fail a completed run.
+        }
+      }
       this.cache.set(input.idempotency_key, result);
       return result;
     } finally {

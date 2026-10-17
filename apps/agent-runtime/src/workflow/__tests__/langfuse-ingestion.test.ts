@@ -69,4 +69,27 @@ describe("Langfuse ingestion from environment config", () => {
     expect(result.status).toBe("success");
     expect(calls).toEqual([]);
   });
+
+  it("still succeeds when Langfuse rejects the ingestion batch", async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return new Response("unavailable", { status: 503 });
+    };
+    const engine = createWorkflowRuntime({
+      clock: () => CLOCK,
+      complete: async () => ({ text: "Plan de practica en caja" }),
+      langfuseEnv: {
+        LANGFUSE_PUBLIC_KEY: "pk-test",
+        LANGFUSE_SECRET_KEY: "sk-test",
+        LANGFUSE_BASE_URL: BASE_URL,
+      },
+      fetchImpl,
+    });
+
+    const result = await engine.run(request());
+
+    expect(result.status).toBe("success");
+    expect(calls).toBe(1);
+  });
 });
