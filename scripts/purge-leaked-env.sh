@@ -65,18 +65,36 @@ scan_for_secrets() {
 command -v git >/dev/null || die "git no está instalado"
 command -v python3 >/dev/null || die "python3 no está instalado (necesario para git-filter-repo)"
 
+# El fallback descarga un script que luego se ejecuta sobre TODO el historial, así que se fija
+# a una versión etiquetada y se verifica su SHA-256 (nunca la rama `main`, que es mutable).
+FILTER_REPO_VERSION="v2.47.0"
+FILTER_REPO_SHA256="67447413e273fc76809289111748870b6f6072f08b17efe94863a92d810b7d94"
+
+sha256_of() {
+  if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1
+  elif command -v shasum >/dev/null; then shasum -a 256 "$1" | cut -d' ' -f1
+  else die "no hay sha256sum ni shasum para verificar git-filter-repo"
+  fi
+}
+verify_filter_repo() {
+  [[ "$(sha256_of "$1")" == "$FILTER_REPO_SHA256" ]] \
+    || die "git-filter-repo ($1) no coincide con el SHA-256 esperado de ${FILTER_REPO_VERSION}; bórralo y reintenta"
+}
+
 FILTER_REPO_CMD=()
 if command -v git-filter-repo >/dev/null; then
   FILTER_REPO_CMD=(git-filter-repo)
 elif [[ -f "${WORKDIR}/git-filter-repo" ]]; then
+  verify_filter_repo "${WORKDIR}/git-filter-repo"
   FILTER_REPO_CMD=(python3 "${WORKDIR}/git-filter-repo")
 else
   if [[ "$APPLY" -eq 1 ]]; then
     command -v curl >/dev/null || die "curl no está instalado (necesario para descargar git-filter-repo)"
-    log "Descargando git-filter-repo (script Python de un solo archivo)"
+    log "Descargando git-filter-repo ${FILTER_REPO_VERSION} (script Python de un solo archivo)"
     mkdir -p "$WORKDIR"
     curl -fsSL -o "${WORKDIR}/git-filter-repo" \
-      https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo
+      "https://raw.githubusercontent.com/newren/git-filter-repo/${FILTER_REPO_VERSION}/git-filter-repo"
+    verify_filter_repo "${WORKDIR}/git-filter-repo"
     chmod +x "${WORKDIR}/git-filter-repo"
     FILTER_REPO_CMD=(python3 "${WORKDIR}/git-filter-repo")
   else
