@@ -17,11 +17,26 @@ const money = (min: number | null, max: number | null) => {
 };
 
 export function VacantesView({ result = null, loading = false }: VacantesViewProps) {
+  const [loadedResult, setLoadedResult] = useState<ExplorationResult | null>(result);
+  const [newMatches, setNewMatches] = useState<ExplorationResult['matches']>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
-  const matches = result?.matches ?? [];
+  const currentResult = loadedResult ?? result;
+  const matches = currentResult?.matches ?? [];
   const selected = matches.find((match) => match.vacancy.jobId === selectedId) ?? null;
+
+  useEffect(() => {
+    const candidateId = window.localStorage.getItem('puente:candidateId');
+    if (!candidateId || result) return;
+    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`).then((response) => response.ok ? response.json() : null).then((body: { searches?: Array<{ matches: ExplorationResult['matches']; summary: ExplorationResult['summary']; newSinceLastVisit: ExplorationResult['matches'] }> } | null) => {
+      const view = body?.searches?.[0];
+      if (view) {
+        setNewMatches(view.newSinceLastVisit);
+        setLoadedResult({ matches: view.matches, summary: view.summary, excluded: [], noMatch: null } as unknown as ExplorationResult);
+      }
+    }).catch(() => undefined);
+  }, [result]);
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('v');
@@ -63,12 +78,13 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
     {notice ? <div className="toast-notice" role="status">{notice}</div> : null}
     <div className="vacantes-heading">
       <div><p className="eyebrow">Explora oportunidades</p><h1>Vacantes para ti</h1><p className="lead">Encontramos oportunidades que se ajustan a lo que buscas.</p></div>
-      <span className="vacantes-count">{result?.summary.matched ?? 0} compatibles</span>
+      <span className="vacantes-count">{currentResult?.summary.matched ?? 0} compatibles</span>
     </div>
-    {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <div key={id} className="vacancy-skeleton" />)}</div> : <>
+      {newMatches.length > 0 ? <section aria-labelledby="new-vacancies-heading" className="new-vacancies"><h2 id="new-vacancies-heading">Nuevas desde tu última visita</h2><div className="vacancy-grid">{newMatches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} />)}</div></section> : null}
+      {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <div key={id} className="vacancy-skeleton" />)}</div> : <>
       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
-      {result?.noMatch?.nearMatches.length ? <NearMatches matches={result.noMatch.nearMatches} /> : null}
-      {result?.excluded.length ? <p className="excluded-summary"><strong>{result.excluded.length} vacantes excluidas</strong> · {topCauses(result.excluded)}</p> : null}
+      {currentResult?.noMatch?.nearMatches.length ? <NearMatches matches={currentResult.noMatch.nearMatches} /> : null}
+      {currentResult?.excluded.length ? <p className="excluded-summary"><strong>{currentResult.excluded.length} vacantes excluidas</strong> · {topCauses(currentResult.excluded)}</p> : null}
     </>}
     <VacancyDetail match={selected} open={Boolean(selected)} onClose={close} />
   </main>;

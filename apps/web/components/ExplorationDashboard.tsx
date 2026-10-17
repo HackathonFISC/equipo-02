@@ -173,6 +173,7 @@ export function ExplorationDashboard() {
         return;
       }
       const explored = body as ExplorationResult;
+      window.localStorage.setItem('puente:candidateId', explored.candidateId);
       setResult(explored);
       setStatus({ loading: false });
       // Trigger the training-roadmap path only when nothing viable was found.
@@ -188,6 +189,10 @@ export function ExplorationDashboard() {
 
   async function onSaveSearch() {
     if (!result) return;
+    if (!window.localStorage.getItem('puente:candidateId')) {
+      window.location.href = `/ingresar?next=${encodeURIComponent('/vacantes')}`;
+      return;
+    }
     try {
       const response = await fetch('/api/searches', {
         method: 'POST',

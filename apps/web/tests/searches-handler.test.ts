@@ -4,6 +4,7 @@ import { createInMemoryPreferencesStore } from '../lib/preferences-store';
 import { createInMemorySavedSearchesStore } from '../lib/saved-searches-store';
 import { handleListSearches, handleSaveSearch } from '../lib/searches-handler';
 import { type PreferencesDraft } from '../lib/preferences';
+import { createInMemoryVacancyVisitsStore } from '../lib/vacancy-visits-store';
 import preferencesFixture from '../../../packages/catalog/fixtures/preferences.json';
 
 const NOW = () => new Date('2026-10-16T12:00:00.000Z');
@@ -15,13 +16,13 @@ function draft(): PreferencesDraft {
 }
 
 /** Minimal ExplorationResult carrying only the fields the searches handler reads. */
-function resultWith(jobIds: string[]): ExplorationResult {
+function resultWith(jobIds: string[], postedAt = '2026-10-16T11:00:00.000Z'): ExplorationResult {
   return {
     schemaVersion: '1.0.0',
     candidateId: preferences.candidate_id,
     generatedAt: '2026-10-16T12:00:00.000Z',
     preferences,
-    matches: jobIds.map((jobId) => ({ vacancy: { jobId } })),
+    matches: jobIds.map((jobId) => ({ vacancy: { jobId, postedAt } })),
     excluded: [],
     summary: { considered: jobIds.length, matched: jobIds.length, excluded: 0, stale: 0 },
   } as unknown as ExplorationResult;
@@ -65,5 +66,22 @@ describe('handleSaveSearch / handleListSearches', () => {
 
   it('rejects a missing candidate id when listing', async () => {
     expect((await handleListSearches('')).status).toBe(400);
+  });
+
+  it('returns matches newer than the previous visit and marks the visit', async () => {
+    const visitsStore = createInMemoryVacancyVisitsStore();
+    const agent = { run: vi.fn().mockResolvedValue(resultWith(['a'], '2026-10-17T09:00:00.000Z')) };
+    const first = await handleListSearches(preferences.candidate_id, {
+      agent,
+      visitsStore,
+      now: () => new Date('2026-10-17T08:00:00.000Z'),
+    });
+    expect((first.body as { searches: unknown[] }).searches).toHaveLength(0);
+    const second = await handleListSearches(preferences.candidate_id, {
+      agent,
+      visitsStore,
+      now: () => new Date('2026-10-17T10:00:00.000Z'),
+    });
+    expect((second.body as { searches: Array<{ newSinceLastVisit: unknown[] }> }).searches).toHaveLength(0);
   });
 });

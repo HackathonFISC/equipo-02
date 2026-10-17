@@ -180,3 +180,7 @@ textarea:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
+
+.nav-badge { display: inline-grid; min-width: 1.2rem; min-height: 1.2rem; place-items: center; margin-left: .35rem; padding: 0 .3rem; border-radius: 999px; color: white; background: var(--primary); font-size: .7rem; }
+.new-vacancies { margin-bottom: 1.5rem; padding: 1rem; border: 2px solid var(--primary); border-radius: 1rem; background: var(--teal-tint); }
+.new-vacancies h2 { margin-top: 0; }
