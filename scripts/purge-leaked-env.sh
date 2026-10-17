@@ -48,12 +48,17 @@ die()  { printf '\033[1;31m[error] %s\033[0m\n' "$*" >&2; exit 1; }
 # Escanea los tips de todas las ramas (rápido) + la historia de las rutas objetivo.
 tip_scan() {
   local tips
-  tips=$(git -C "$MIRROR" for-each-ref --format='%(objectname)' refs/heads 2>/dev/null)
+  tips=$(git -C "$MIRROR" for-each-ref --format='%(objectname)' \
+    refs/heads refs/tags refs/remotes 2>/dev/null)
   [[ -n "$tips" ]] || return 0
   git -C "$MIRROR" grep -I -E "$SECRET_REGEX" $tips 2>/dev/null | head -3 || true
 }
 path_scan() {
   git -C "$MIRROR" log --all -p -- "${PATHS[@]}" 2>/dev/null | grep -aE "$SECRET_REGEX" | head -3 || true
+}
+scan_for_secrets() {
+  tip_scan
+  path_scan
 }
 
 # --- 1. Preflight -----------------------------------------------------------
@@ -67,6 +72,7 @@ elif [[ -f "${WORKDIR}/git-filter-repo" ]]; then
   FILTER_REPO_CMD=(python3 "${WORKDIR}/git-filter-repo")
 else
   if [[ "$APPLY" -eq 1 ]]; then
+    command -v curl >/dev/null || die "curl no está instalado (necesario para descargar git-filter-repo)"
     log "Descargando git-filter-repo (script Python de un solo archivo)"
     mkdir -p "$WORKDIR"
     curl -fsSL -o "${WORKDIR}/git-filter-repo" \
@@ -116,11 +122,11 @@ done
 
 # --- 4. Comprobar que hay secretos REALES (solo reporta boolean) ------------
 log "Comprobando que hay valores reales (no plantillas)"
-SECRET_HITS=$( { tip_scan; path_scan; } )
+SECRET_HITS=$(scan_for_secrets)
 if [[ -n "$SECRET_HITS" ]]; then
   echo "  Se detectaron patrones de credenciales reales. Confirmado."
 else
-  warn "No se detectaron patrones fuertes. Revisa manualmente antes de continuar."
+  die "No se detectaron patrones fuertes. Revisa la historia manualmente antes de continuar."
 fi
 
 # --- 5. Purga ---------------------------------------------------------------
@@ -148,9 +154,9 @@ fi
 
 # --- 6. Verificación post-purga ---------------------------------------------
 log "Verificando que ya no quedan secretos en la historia reescrita"
-LEFTOVER=$( { tip_scan; path_scan; } )
+LEFTOVER=$(scan_for_secrets)
 if [[ -n "$LEFTOVER" ]]; then
-  warn "Todavía se detectan patrones. Revisa los tips/historia de ${PATHS[*]}"
+  die "Todavía se detectan patrones. Revisa los tips/historia de ${PATHS[*]} antes de publicar."
 else
   echo "  OK: sin coincidencias de patrones de credenciales."
 fi
@@ -174,9 +180,9 @@ Siguientes pasos MANUALES (revisa antes de ejecutar):
   git -C "$MIRROR" push --force --all
   git -C "$MIRROR" push --force --tags
 
-  # 2. PR #105: sus refs refs/pull/* son gestionados por GitHub y NO se pueden
+  # 2. PR #106: sus refs refs/pull/* son gestionados por GitHub y NO se pueden
   #    sobreescribir. Cierra y reabre el PR (o ábrelo de nuevo desde la rama
-  #    reescrita) para regenerar refs/pull/105/merge.
+  #    reescrita) para regenerar refs/pull/106/merge.
 
   # 3. GitHub conserva blobs accesibles por SHA hasta su GC. Abre un ticket a
   #    GitHub Support solicitando la purga del commit/objeto filtrado:
@@ -194,4 +200,4 @@ fi
 log "Haciendo force-push del historial reescrito a origin"
 git -C "$MIRROR" push --force --all
 git -C "$MIRROR" push --force --tags
-warn "Recuerda: cierra/reabre PR #105 y solicita a GitHub Support la purga en caché."
+warn "Recuerda: cierra/reabre PR #106 y solicita a GitHub Support la purga en caché."
