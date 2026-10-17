@@ -209,8 +209,13 @@ export function ChatScreen() {
         if (!retryable) throw new Error(error?.error?.message ?? 'chat_request_failed');
         throw new Error('chat_request_retryable');
       }
-      const handle = await response.json() as { jobId?: string; status?: string; statusUrl?: string; pollAfterMs?: number; result?: ChatTurn };
+      const handle = await response.json() as { jobId?: string; status?: string; statusUrl?: string; pollAfterMs?: number; result?: ChatTurn; reply?: string };
       let turn = handle.result;
+      // The compatibility adapter returns a ChatTurn directly.
+      if (handle.reply && !handle.jobId) {
+        sessionVersion.current += 1;
+        turn = handle as unknown as ChatTurn;
+      }
       while (!turn && handle.jobId && activeRequest.current === requestId) {
         setActivity(handle.status === 'running' ? 'Estoy procesando tu respuesta…' : 'Tu respuesta está en cola…');
         await new Promise((resolve) => window.setTimeout(resolve, Math.max(250, handle.pollAfterMs ?? 1000)));
