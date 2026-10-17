@@ -7,9 +7,9 @@
   ],
   "validation": {
     "acceptanceCriteriaMet": false,
-    "commands": ["npm run lint", "npm run typecheck", "npm test -- --run apps/web/tests/chat-turns-route.test.ts apps/web/tests/components/chat-screen.test.tsx"],
-    "skipped": ["Full test suite, Playwright, gate-ci", "Existing ChatScreen tests still mock the synchronous endpoint and need migration to async submit/poll fixtures."],
-    "notes": "Lint and typecheck pass. Route tests pass. ChatScreen tests still fail because their MSW fixtures only cover the legacy endpoint."
+    "commands": ["npm run lint", "npm run typecheck", "npm test", "npm test -- --run apps/web/tests/components/chat-screen.test.tsx", "npm run test:e2e:web"],
+    "skipped": ["gate-ci / publication"],
+    "notes": "Lint, typecheck, full unit suite (698 passed, 10 skipped), and ChatScreen tests (12 passed) pass. Playwright is externally blocked because the environment lacks libnspr4.so."
   },
   "branch": "feat/issue-97-migrate-web-chat-async-turns",
   "nextConsumer": "implement",
