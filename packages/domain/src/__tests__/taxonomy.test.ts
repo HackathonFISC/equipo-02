@@ -78,7 +78,11 @@ describe("ESCO taxonomy contract", () => {
           uri: skill.escoUri,
           label: skill.escoLabel,
           status: "released",
+          selectedVersion: PANAMA_SKILL_TAXONOMY.escoVersion,
         });
+        expect(resolved?.sourceUrl, `${skill.id} has no replayable ESCO source`).toContain(
+          `uri=${encodeURIComponent(skill.escoUri)}`,
+        );
       }
     }
   });

@@ -4,7 +4,7 @@
   "provenance": "Derived from the ESCO occupational skills pillar and localized for the Panama Metro and Panama Oeste target roles: junior technical support, customer service, and administrative work. Every entry keeps its localized Spanish/English labels and aliases; `escoLabel`/`escoUri` are additive references. Concept URIs were resolved against ESCO v1.2.1 on 2026-10-16 and each referenced concept had status=released. Local `id` values are stable and are the join key used by the application.",
   "escoVersion": "v1.2.1",
   "escoResolvedAt": "2026-10-16",
-  "escoResolution": "Resolved with GET https://ec.europa.eu/esco/api/resource/skill?selectedVersion=v1.2.1&language=en on 2026-10-16; only concepts with status=released were accepted.",
+  "escoResolution": "Resolved each concept with GET https://ec.europa.eu/esco/api/resource/skill?uri=<encoded-concept-uri>&selectedVersion=v1.2.1&language=en on 2026-10-16; only concepts with status=released were accepted. Per-concept captured responses are pinned in the taxonomy verification fixture.",
   "skills": [
     {
       "id": "PA-IT-0001",
