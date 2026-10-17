@@ -11,7 +11,7 @@
     "skipped": [],
     "notes": "Saved-search views now track last visits, /vacantes renders newer matches, and the candidate shell exposes an accessible badge."
   },
-  "commitSha": "",
+  "commitSha": "266d09d",
   "branch": "feat/issue-48-surface-saved-search-matches",
   "nextConsumer": "publish-open-pr",
   "blockedBy": [],
