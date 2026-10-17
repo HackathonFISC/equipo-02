@@ -2,12 +2,13 @@
 
 **Issue:** #42
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = high; `risk` = high; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [Chat model](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#chat-model) · [Slot agenda](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#slot-agenda) · [Architecture: chat endpoint](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/architecture.md#chat-endpoint-post-apichat) · [ADR-0006](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/.agents/adr/0006-guided-chat-intake.md) · [LLM eval set](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/testing.md#llm-behavioral-eval-set-r8)

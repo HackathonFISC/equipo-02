@@ -2,12 +2,13 @@
 
 **Issue:** #46
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = medium; `risk` = low; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [Screens S5, S6](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/screens.md#s6--mi-ruta-ruta) · [State matrix](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#state-matrix)

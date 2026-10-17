@@ -2,12 +2,13 @@
 
 **Issue:** #48
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = low; `risk` = low; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [OQ-6 decision](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/open-questions.md#oq-6--saved-searches) · [Spec (AC-82)](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/spec.md)

@@ -2,12 +2,13 @@
 
 **Issue:** #47
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = medium; `risk` = medium; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [Screen S7](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/screens.md#s7--mi-perfil-perfil) · [Errors and recovery](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#errors-and-recovery)

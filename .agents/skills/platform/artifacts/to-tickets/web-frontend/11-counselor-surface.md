@@ -2,12 +2,13 @@
 
 **Issue:** #43
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = medium; `risk` = high; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [Screen S11](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/screens.md#s11--orientador-orientador-orientadordraftid) · [Application lifecycle](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#application-lifecycle-j7j9) · [Gate reasons](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#gate-reasons-in-plain-spanish)

@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed — 2026-10-16. Review when the chat endpoint ships or when OQ-7/OQ-8 are resolved.
+Proposed — 2026-10-16. Review when the chat endpoint ships; OQ-7 and OQ-8 were resolved in the
+frontend specification revision.
 
 ## Context
 

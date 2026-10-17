@@ -9,7 +9,7 @@ surfaces those approvals require, all behind Better Auth.
 **Reader job:** know what the web app must do, how it looks, how it is built, and which decisions
 are still open — without re-deriving them from the conversation that produced them.
 
-**Status:** `Refined — ready for prototype and to-tickets` (revision 5, 2026-10-16). All open
+**Status:** `Refined — ready for implementation` (revision 5, 2026-10-16). All open
 questions in [open-questions.md](open-questions.md) are resolved; ADR-0006 and ADR-0007 remain
 `Proposed` until the prototype is reviewed.
 
@@ -29,7 +29,8 @@ questions in [open-questions.md](open-questions.md) are resolved; ADR-0006 and A
 
 Decisions: [ADR-0006](../../../.agents/adr/0006-guided-chat-intake.md) (LLM-guided chat over a
 deterministic slot agenda), [ADR-0007](../../../.agents/adr/0007-web-styling-tailwind-shadcn.md)
-(Tailwind v4 + shadcn/ui). Domain vocabulary: [`CONTEXT.md`](../../../CONTEXT.md). Boundaries:
+(Tailwind v4 + shadcn/ui), and [ADR-0008](../../../.agents/adr/0008-role-organization-authorization.md)
+(role and employer-organization authorization). Domain vocabulary: [`CONTEXT.md`](../../../CONTEXT.md). Boundaries:
 ADR-0002, ADR-0003, ADR-0004, ADR-0005. Parent spec: `.agents/skills/platform/artifacts/to-spec/puente-laboral-quantumquirkxyz.md`.
 Machine-readable spec: `.agents/skills/platform/artifacts/to-spec/puente-laboral-web-frontend.json`.
 Tracker: spec issue #32; tickets #33–#51 (sub-issues with native blocked-by edges); wave plan in
@@ -39,7 +40,7 @@ Tracker: spec issue #32; tickets #33–#51 (sub-issues with native blocked-by ed
 
 ```
 analysis (done) → spec + design docs (this set) → refinement (open-questions.md)
-  → prototype (clickable HTML) → to-tickets → implementation → frontend-testing / code-review
+  → to-tickets (done) → implementation → frontend-testing / code-review
 ```
 
 ## Language convention

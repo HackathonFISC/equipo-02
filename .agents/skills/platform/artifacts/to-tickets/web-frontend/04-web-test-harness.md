@@ -2,12 +2,13 @@
 
 **Issue:** #36
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = high; `risk` = low; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [Test strategy](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/testing.md) · [Accessibility](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/accessibility.md)

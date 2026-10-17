@@ -2,12 +2,13 @@
 
 **Issue:** #40
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = application; `phase` = build; `priority` = high; `risk` = critical; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [Spec: seams](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/spec.md#seams-and-testing-decisions) · [Architecture: BFF](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/architecture.md#authentication-better-auth) · [OQ-10](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/open-questions.md)

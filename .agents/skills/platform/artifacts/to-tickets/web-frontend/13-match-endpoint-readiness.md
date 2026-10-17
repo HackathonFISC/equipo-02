@@ -2,12 +2,13 @@
 
 **Issue:** #45
 
-**Owner:** MateoDG2006  
-**Parent spec:** #32  
-**Labels:** `ready-for-agent`  
+**Owner:** MateoDG2006
+**Parent spec:** #32
+**Labels:** `ready-for-agent`
 **Metadata**
 
 - Project: none
+- Milestone: none
 - Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = high; `risk` = high; `sprint` = hackathon  ; `release_train` = none
 - Todo: none
 **Docs:** [OQ-1 decision](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/open-questions.md#oq-1--readiness-source) · [Screen S4](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/screens.md#s4--detalle-de-vacante-sheet--panel) · [ReadinessBar](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/design-system.md#variants-cva)
