@@ -13,7 +13,10 @@ handler tests as the base of the pyramid.
 - `playwright.config.ts` runs the runtime project plus the web/device projects (`Pixel 7`, `iPhone
   14`, `Desktop Chrome`, and `web`) from the top-level web-server configuration.
 
-## Tiers
+## Target test tiers
+
+The tiers below are the target coverage for the frontend work. The current implementation is listed
+in **Current setup** above; planned suites are not represented as shipped until their files land.
 
 | Tier | Scope | Tool | Location | Owner |
 |---|---|---|---|---|
@@ -35,9 +38,12 @@ component tests and visual snapshots instead.
 - Playwright’s web project uses `apps/web/e2e`, a fixed second server port without
   `OPENROUTER_API_KEY`, and the device projects `Pixel 7`, `iPhone 14`, and `Desktop Chrome` (AC-54).
 
-## What each acceptance criterion is tested by
+## Planned acceptance-criterion coverage
 
-| Criteria | Test |
+The matrix below maps each criterion to its planned test seam. It is a delivery checklist, not a
+claim that every named suite already exists in the repository.
+
+| Criteria | Planned test |
 |---|---|
 | AC-02, AC-47 slot priority and confirmation | Unit: `tracker.test.ts` table-driven over slot states |
 | AC-46, AC-48, AC-49 chat turns, schema, fallback | Handler: `chat-handler.test.ts` with fake `ChatFn` returning valid / invalid / throwing / slow |
