@@ -50,3 +50,35 @@ export function parseEvidence(value: unknown): EvidenceItem[] {
     };
   });
 }
+
+/**
+ * Maps evidence credentialStatus based on the evidence kind:
+ * - For certification evidence: maps verified → "verified",
+ *   declared/partially_verified/unverified/rejected → "unverified"
+ * - For non-certification evidence: maps to "not_applicable"
+ */
+export function toApplicationEvidence(
+  evidence: readonly EvidenceItem[],
+): EvidenceItem[] {
+  const result = evidence.map((item) => {
+    if (item.kind === 'certification') {
+      const statusMap: Record<string, CredentialStatus> = {
+        verified: 'verified',
+        declared: 'unverified',
+        partially_verified: 'unverified',
+        unverified: 'unverified',
+        rejected: 'unverified',
+      };
+      return {
+        ...item,
+        credentialStatus: statusMap[item.credentialStatus] ?? 'unverified',
+      };
+    }
+    // Non-certification evidence gets "not_applicable"
+    return {
+      ...item,
+      credentialStatus: 'not_applicable',
+    };
+  });
+  return result;
+}
