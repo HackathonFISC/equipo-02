@@ -154,7 +154,7 @@ test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async
   await page.getByRole('button', { name: 'Guardar esta búsqueda' }).click();
   await page.getByLabel('Nombre de la búsqueda').fill('Búsqueda e2e');
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Búsqueda guardada');
+  await expect(page.getByText('Búsqueda guardada.', { exact: true })).toBeVisible(RESPUESTA);
 });
 
 test('UC-06 elimina los datos del candidato y vacía la lista', async ({ page }) => {
