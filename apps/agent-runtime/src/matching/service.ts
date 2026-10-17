@@ -1,4 +1,9 @@
-import type { CandidateProfile, JobRequirements } from "@puente/domain";
+import {
+  assertCandidateProfile,
+  assertJobRequirements,
+  type CandidateProfile,
+  type JobRequirements,
+} from "@puente/domain";
 import {
   evaluateMatch,
   nominate,
@@ -95,8 +100,7 @@ export class MatchingService {
   }
 
   private assertFresh(vacancy: VacancyMatchInput, now: Date): void {
-    if (!vacancy.context.capturedAt) return;
-    const capturedAt = Date.parse(vacancy.context.capturedAt);
+    const capturedAt = Date.parse(vacancy.document.capturedAt);
     if (!Number.isFinite(capturedAt)) {
       throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has invalid freshness metadata.`);
     }
@@ -106,6 +110,25 @@ export class MatchingService {
         `Vacancy ${vacancy.document.vacancyId} is stale: older than ${maxAgeHours} hours.`,
       );
     }
+  }
+
+  private validateDocuments(profile: unknown, vacancies: readonly VacancyMatchInput[]): void {
+    try {
+      assertCandidateProfile(profile);
+      for (const vacancy of vacancies) assertJobRequirements(vacancy.document);
+    } catch (error) {
+      throw new MatchingInputError(
+        `Matching input failed runtime validation: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private freshnessWarning(vacancy: VacancyMatchInput, now: Date): string | null {
+    const ageHours = (now.getTime() - Date.parse(vacancy.document.capturedAt)) / (60 * 60 * 1000);
+    const maxAgeHours = vacancy.context.freshnessMaxAgeHours ?? 72;
+    return ageHours >= maxAgeHours - 24 && ageHours <= maxAgeHours
+      ? `Vacancy ${vacancy.document.vacancyId} is approaching its ${maxAgeHours}-hour freshness limit.`
+      : null;
   }
 
   private async vacancyInputs(
@@ -127,6 +150,8 @@ export class MatchingService {
         continue;
       }
       this.assertFresh(vacancy, now);
+      const freshnessWarning = this.freshnessWarning(vacancy, now);
+      if (freshnessWarning) warnings.push(freshnessWarning);
       const geocode = await this.requireGeocode(
         this.deps.geocoding.geocode(vacancy.document.location),
         `vacancy ${vacancy.document.vacancyId}`,
@@ -146,6 +171,7 @@ export class MatchingService {
   async nominateForCandidate(
     input: CandidateNominationInput,
   ): Promise<CandidateNominationResult> {
+    this.validateDocuments(input.profile, input.vacancies);
     const homeResult = await this.requireGeocode(
       this.deps.geocoding.geocode(input.context.home),
       "candidate home",
@@ -197,12 +223,14 @@ export class MatchingService {
     vacancy: VacancyMatchInput,
     options: EvaluatePairOptions = {},
   ): Promise<EvaluatedPairResult> {
+    this.validateDocuments(profile, [vacancy]);
     if (!isVacancyRankable(vacancy.document)) {
       throw new MatchingInputError(
         `Vacancy ${vacancy.document.vacancyId} is blocked and cannot be evaluated.`,
       );
     }
-    this.assertFresh(vacancy, options.now?.() ?? new Date());
+    const now = options.now?.() ?? new Date();
+    this.assertFresh(vacancy, now);
     const homeResult = await this.requireGeocode(
       this.deps.geocoding.geocode(context.home),
       "candidate home",
@@ -213,6 +241,7 @@ export class MatchingService {
       `vacancy ${vacancy.document.vacancyId}`,
     );
     const solverVacancy = toSolverVacancy(vacancy.document, vacancy.context, vacancyResult.point);
+    const freshnessWarning = this.freshnessWarning(vacancy, now);
 
     return {
       decision: await evaluateMatch(candidate, solverVacancy, {
@@ -224,6 +253,7 @@ export class MatchingService {
       geocoding: { home: homeResult, vacancy: vacancyResult },
       warnings: [
         ...(this.deps.warnings ?? []),
+        ...(freshnessWarning ? [freshnessWarning] : []),
         ...(vacancyResult.fallbackReason ? [vacancyResult.fallbackReason] : []),
       ],
     };

@@ -190,9 +190,11 @@ export async function runAgent(
   }
 
   if (agent === "market_and_matching" && services.matching && services.matchingInput) {
-    const nomination = await services.matching.nominateForCandidate(
-      await services.matchingInput(carrier),
-    );
+    const suppliedInput = await services.matchingInput(carrier);
+    const nomination = await services.matching.nominateForCandidate({
+      ...suppliedInput,
+      now: () => new Date(services.clock()),
+    });
     const summary = JSON.stringify({
       candidateId: nomination.candidateId,
       decisions: nomination.result.decisions,

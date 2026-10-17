@@ -74,20 +74,32 @@ describe("MatchingService.evaluatePair", () => {
   it("rejects vacancies older than the automatic recommendation limit", async () => {
     const config = matchingConfigFromEnv({});
     const service = new MatchingService({ routing: config.routing, geocoding: config.geocoding });
+    const staleDocument = await objectiveDocument();
+    staleDocument.capturedAt = "2026-10-10T12:00:00.000Z";
     await expect(
       service.evaluatePair(
         candidateProfile(),
         CANDIDATE_CONTEXT,
         {
-          document: await objectiveDocument(),
+          document: staleDocument,
           context: {
             ...VACANCY_CONTEXT,
-            capturedAt: "2026-10-10T12:00:00.000Z",
           },
         },
         { now: () => new Date("2026-10-16T12:00:00.000Z") },
       ),
     ).rejects.toThrow("older than 72 hours");
+  });
+
+  it("rejects malformed runtime documents before adaptation", async () => {
+    const service = offlineService();
+    await expect(
+      service.nominateForCandidate({
+        profile: { candidate_id: "malformed" } as never,
+        context: CANDIDATE_CONTEXT,
+        vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
+      }),
+    ).rejects.toMatchObject({ code: "matching_input" });
   });
 });
 

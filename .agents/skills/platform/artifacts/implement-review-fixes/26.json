@@ -17,12 +17,20 @@
   ],
   "completedItems": [
     "Wired validated matching input into the market_and_matching workflow path and bypassed the LLM router for deterministic solver execution.",
-    "Added 72-hour freshness validation and propagated matching/provider warnings.",
+    "Added runtime profile/vacancy validation, authoritative 72-hour freshness validation, deterministic workflow-clock handling, and propagated matching/provider warnings.",
     "Preserved geocoding source and fallbackReason in caller-visible matching results."
   ],
   "blockedItems": [],
   "validation": {
     "status": "passed",
+    "commands": [
+      "npm run lint",
+      "npm test -- --run",
+      "npm run test:coverage",
+      "npm run typecheck"
+    ],
+    "tests": 423,
+    "coverage": { "lines": 94.13, "branches": 82.45 },
     "reason": "User explicitly authorized implementing the deferred corrections in PR #26."
   },
   "nextConsumer": "review-pr"
