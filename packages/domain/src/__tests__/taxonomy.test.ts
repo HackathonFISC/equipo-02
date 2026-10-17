@@ -51,3 +51,38 @@ describe("matchSkill", () => {
     expect(matchSkill("   ").matched).toBe(false);
   });
 });
+
+describe("ESCO taxonomy contract", () => {
+  const ESCO_SKILL_URI =
+    /^http:\/\/data\.europa\.eu\/esco\/skill\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+  it("records the ESCO release used to resolve concept URIs", () => {
+    expect(PANAMA_SKILL_TAXONOMY.escoVersion).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(PANAMA_SKILL_TAXONOMY.provenance).toContain(PANAMA_SKILL_TAXONOMY.escoVersion);
+  });
+
+  it("gives every seed skill a verified ESCO URI or an explicit unmapped reason", () => {
+    for (const skill of PANAMA_SKILL_TAXONOMY.skills) {
+      if (skill.escoUri === null) {
+        expect(skill.escoUnmappedReason?.trim(), `${skill.id} needs an unmapped reason`).toBeTruthy();
+      } else {
+        expect(skill.escoUri, skill.id).toMatch(ESCO_SKILL_URI);
+        expect(skill.escoLabel.trim(), skill.id).not.toBe("");
+      }
+    }
+  });
+
+  it("keeps every ESCO concept URI unique across seed skills", () => {
+    const uris = PANAMA_SKILL_TAXONOMY.skills
+      .map((skill) => skill.escoUri)
+      .filter((uri): uri is string => uri !== null);
+    expect(new Set(uris).size).toBe(uris.length);
+  });
+
+  it("preserves the localized labels for every seed skill", () => {
+    for (const skill of PANAMA_SKILL_TAXONOMY.skills) {
+      expect(skill.labelEs.trim(), skill.id).not.toBe("");
+      expect(skill.labelEn.trim(), skill.id).not.toBe("");
+    }
+  });
+});

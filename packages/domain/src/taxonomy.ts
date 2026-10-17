@@ -7,6 +7,8 @@ export interface TaxonomySkill {
   labelEn: string;
   escoLabel: string;
   escoUri: string | null;
+  /** Recorded only when the skill cannot be mapped to a released ESCO concept. */
+  escoUnmappedReason?: string | null;
   kind: string;
   aliases: string[];
 }
@@ -15,6 +17,12 @@ export interface SkillTaxonomy {
   version: string;
   source: string;
   provenance: string;
+  /** ESCO release the concept URIs were resolved against (e.g. "v1.2.1"). */
+  escoVersion: string;
+  /** ISO date of the resolution run. */
+  escoResolvedAt?: string;
+  /** How concepts were resolved and verified against ESCO. */
+  escoResolution?: string;
   skills: TaxonomySkill[];
 }
 
