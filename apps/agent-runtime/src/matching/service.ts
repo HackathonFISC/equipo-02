@@ -115,11 +115,40 @@ export class MatchingService {
   private validateDocuments(profile: unknown, vacancies: readonly VacancyMatchInput[]): void {
     try {
       assertCandidateProfile(profile);
-      for (const vacancy of vacancies) assertJobRequirements(vacancy.document);
+      for (const vacancy of vacancies) {
+        assertJobRequirements(vacancy.document);
+        if (!vacancy.context || typeof vacancy.context !== "object") {
+          throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has no matching context.`);
+        }
+        const context = vacancy.context as unknown as Record<string, unknown>;
+        for (const field of ["schedule", "salaryMinUsd", "salaryMaxUsd", "capacity"]) {
+          if (context[field] === undefined) {
+            throw new MatchingInputError(
+              `Vacancy ${vacancy.document.vacancyId} matching context is missing ${field}.`,
+            );
+          }
+        }
+      }
     } catch (error) {
+      if (error instanceof MatchingInputError) throw error;
       throw new MatchingInputError(
         `Matching input failed runtime validation: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+  }
+
+  private validateCandidateContext(context: CandidateMatchContext): void {
+    if (!context || typeof context !== "object" || !context.home || !context.availability || !context.transport) {
+      throw new MatchingInputError("Candidate matching context is incomplete.");
+    }
+    for (const [name, value] of [
+      ["expectedSalaryUsd", context.expectedSalaryUsd],
+      ["availability", context.availability],
+      ["transport", context.transport],
+    ] as const) {
+      if (value === undefined || value === null) {
+        throw new MatchingInputError(`Candidate matching context is missing ${name}.`);
+      }
     }
   }
 
@@ -172,6 +201,7 @@ export class MatchingService {
     input: CandidateNominationInput,
   ): Promise<CandidateNominationResult> {
     this.validateDocuments(input.profile, input.vacancies);
+    this.validateCandidateContext(input.context);
     const homeResult = await this.requireGeocode(
       this.deps.geocoding.geocode(input.context.home),
       "candidate home",
@@ -236,6 +266,7 @@ export class MatchingService {
     options: EvaluatePairOptions = {},
   ): Promise<EvaluatedPairResult> {
     this.validateDocuments(profile, [vacancy]);
+    this.validateCandidateContext(context);
     if (!isVacancyRankable(vacancy.document)) {
       throw new MatchingInputError(
         `Vacancy ${vacancy.document.vacancyId} is blocked and cannot be evaluated.`,

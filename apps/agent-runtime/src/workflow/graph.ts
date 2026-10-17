@@ -94,7 +94,9 @@ export class WorkflowRuntime {
   constructor(deps: WorkflowDependencies) {
     this.clock = deps.clock ?? (() => new Date().toISOString());
     this.langfuse = deps.langfuse;
-    this.matching = deps.matching ?? createMatchingService(matchingConfigFromEnv(deps.matchingEnv));
+    this.matching = deps.matching ?? createMatchingService(
+      matchingConfigFromEnv(deps.matchingEnv ?? (process.env as MatchingEnv)),
+    );
     this.matchingInput = deps.matchingInput;
     this.router = new ModelRouter(CAPABILITY_CHAINS, deps.complete);
     if (deps.catalog) this.router.preflight(deps.catalog);
