@@ -211,6 +211,8 @@
   .toast-notice { position: fixed; z-index: 100; right: 1rem; bottom: 1rem; max-width: min(22rem, calc(100% - 2rem)); padding: .85rem 1rem; border-radius: .75rem; color: var(--primary-foreground); background: var(--primary); box-shadow: 0 8px 24px #1a2b2e33; font-weight: 600; }
   .no-match-route-link { margin: 1rem 0 0; font-weight: 700; }
   .no-match-route-link a, .ruta-action { color: var(--primary); }
+  .no-match-actions { margin-top: 1rem; }
+  .no-match-actions p { margin-bottom: .5rem; }
   .ruta-page { max-width: 70rem; }
   .ruta-heading { margin-bottom: 2rem; }
   .ruta-card, .ruta-empty { padding: 1.5rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--card); }

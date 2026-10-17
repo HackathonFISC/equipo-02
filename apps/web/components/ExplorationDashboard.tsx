@@ -92,14 +92,13 @@ export function ExplorationDashboard() {
   const searchesQuery = useSavedSearches(result?.candidateId);
   const searches = searchesQuery.data ?? [];
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function exploreWithPreferences(preferences: PreferencesFormState) {
     setSubmitError(undefined);
     setRoadmap(null);
     setSavedMessage(null);
 
     try {
-      const explored = await exploreMutation.mutateAsync(buildPayload(form));
+      const explored = await exploreMutation.mutateAsync(buildPayload(preferences));
       setResult(explored);
       let generatedRoadmap: Roadmap | null = null;
       if (explored.noMatch?.roadmapRequested) {
@@ -117,6 +116,17 @@ export function ExplorationDashboard() {
       setResult(null);
       setSubmitError(exploreErrorMessage(error));
     }
+  }
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await exploreWithPreferences(form);
+  }
+
+  function enableTrainingAndRebuild() {
+    const nextForm = { ...form, willingTrain: true };
+    setForm(nextForm);
+    void exploreWithPreferences(nextForm);
   }
 
   async function onSaveSearch() {
@@ -169,7 +179,7 @@ export function ExplorationDashboard() {
       </div>
 
       {result ? <VacancyList result={result} /> : null}
-      {result ? <NoMatchPanel result={result} roadmap={roadmap} /> : null}
+      {result ? <NoMatchPanel result={result} roadmap={roadmap} onEnableTraining={enableTrainingAndRebuild} /> : null}
       {result ? (
         <SavedSearches
           searches={searches}

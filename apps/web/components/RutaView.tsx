@@ -5,6 +5,10 @@ import { useEffect, useState } from 'react';
 import type { Roadmap } from '@puente/training';
 import { readExplorationSession } from '../lib/exploration-session';
 
+function formatCost(costUsd: number): string {
+  return costUsd === 0 ? 'Gratis' : `USD ${costUsd}`;
+}
+
 export function RutaView() {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -31,7 +35,7 @@ export function RutaView() {
               {roadmap.recommendations.map((recommendation) => (
                 <li key={recommendation.rank}>
                   <span className="ruta-step-number" aria-hidden="true">{recommendation.rank}</span>
-                  <div><h3>{recommendation.opportunity.title}</h3><p>{recommendation.explanationEs}</p><span className="hint">{recommendation.opportunity.provider} · {recommendation.opportunity.durationHours} h · USD {recommendation.opportunity.costUsd}</span></div>
+                  <div><h3>{recommendation.opportunity.title}</h3><p>{recommendation.explanationEs}</p><span className="hint">{recommendation.opportunity.provider} · {recommendation.opportunity.durationHours} h · {formatCost(recommendation.opportunity.costUsd)}</span></div>
                 </li>
               ))}
             </ol>
