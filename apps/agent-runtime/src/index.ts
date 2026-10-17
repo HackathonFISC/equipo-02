@@ -149,6 +149,12 @@ export {
 export { ApplicationService } from "./application/service";
 export { createApplicationServer } from "./application/server";
 export { BETTER_AUTH_ROLES } from "./application/roles";
+export {
+  toApplicationEvidence,
+  type EvidenceItem,
+  type CredentialStatus,
+  type ProfileCredentialStatus,
+} from "./application/evidence";
 
 export { verificationConfigFromEnv, verifyCredential } from "./verification/index";
 
