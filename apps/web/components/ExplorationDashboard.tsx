@@ -2,6 +2,7 @@
 
 import type { ExplorationResult } from '@puente/catalog';
 import type { Roadmap } from '@puente/training';
+import type { MatchDecision } from '@puente/solver';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiClientError } from '../lib/api/errors';
@@ -9,6 +10,7 @@ import type { PreferencesDraft } from '../lib/preferences';
 import { useExploreVacancies } from '../lib/queries/exploration';
 import { useDeleteCandidateData } from '../lib/queries/preferences';
 import { useRequestRoadmap } from '../lib/queries/roadmap';
+import { useMatchVacancies } from '../lib/queries/match';
 import { searchesQueryKey, useSaveSearchMutation, useSavedSearches } from '../lib/queries/searches';
 import { Card } from './ui/card';
 import { NoMatchPanel } from './exploration/NoMatchPanel';
@@ -16,7 +18,6 @@ import { PreferencesForm, type PreferencesFormState } from './exploration/Prefer
 import { SavedSearches } from './exploration/SavedSearches';
 import { VacancyList } from './exploration/VacancyList';
 import { timeToMinutes } from './exploration/utils';
-import { saveExplorationSession } from '../lib/exploration-session';
 
 const INITIAL_FORM: PreferencesFormState = {
   targetRoles: 'Atención al cliente',
@@ -82,51 +83,42 @@ export function ExplorationDashboard() {
   const [submitError, setSubmitError] = useState<string | undefined>();
   const [searchLabel, setSearchLabel] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [decisions, setDecisions] = useState<MatchDecision[]>([]);
 
   const queryClient = useQueryClient();
   const exploreMutation = useExploreVacancies();
   const roadmapMutation = useRequestRoadmap();
+  const matchMutation = useMatchVacancies();
   const deleteMutation = useDeleteCandidateData();
   const saveSearchMutation = useSaveSearchMutation(result?.candidateId);
 
   const searchesQuery = useSavedSearches(result?.candidateId);
   const searches = searchesQuery.data ?? [];
 
-  async function exploreWithPreferences(preferences: PreferencesFormState) {
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setSubmitError(undefined);
     setRoadmap(null);
     setSavedMessage(null);
 
     try {
-      const explored = await exploreMutation.mutateAsync(buildPayload(preferences));
+      const explored = await exploreMutation.mutateAsync(buildPayload(form));
       setResult(explored);
-      let generatedRoadmap: Roadmap | null = null;
+      setDecisions([]);
+      void matchMutation.mutateAsync(explored.matches.map((match) => match.vacancy.jobId)).then((body) => setDecisions(body.decisions)).catch(() => setDecisions([]));
       if (explored.noMatch?.roadmapRequested) {
         try {
           const body = await roadmapMutation.mutateAsync(explored);
-          generatedRoadmap = body.roadmap;
-          setRoadmap(generatedRoadmap);
+          setRoadmap(body.roadmap);
         } catch {
           // The roadmap is advisory; a failure leaves the no-match explanation intact.
         }
       }
-      saveExplorationSession(explored, generatedRoadmap);
       void queryClient.invalidateQueries({ queryKey: searchesQueryKey(explored.candidateId) });
     } catch (error) {
       setResult(null);
       setSubmitError(exploreErrorMessage(error));
     }
-  }
-
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await exploreWithPreferences(form);
-  }
-
-  function enableTrainingAndRebuild() {
-    const nextForm = { ...form, willingTrain: true };
-    setForm(nextForm);
-    void exploreWithPreferences(nextForm);
   }
 
   async function onSaveSearch() {
@@ -178,8 +170,8 @@ export function ExplorationDashboard() {
         ) : null}
       </div>
 
-      {result ? <VacancyList result={result} /> : null}
-      {result ? <NoMatchPanel result={result} roadmap={roadmap} onEnableTraining={enableTrainingAndRebuild} /> : null}
+      {result ? <VacancyList result={result} decisions={decisions} decisionsLoading={matchMutation.isPending} /> : null}
+      {result ? <NoMatchPanel result={result} roadmap={roadmap} /> : null}
       {result ? (
         <SavedSearches
           searches={searches}

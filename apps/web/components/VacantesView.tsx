@@ -1,22 +1,20 @@
 'use client';
 
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import type { ExplorationResult, VacancyMatch } from '@puente/catalog';
+import type { ExplorationResult, NearMatch, VacancyMatch } from '@puente/catalog';
+import type { MatchDecision } from '@puente/solver';
 import { MODALITY_LABELS } from '@puente/catalog';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Skeleton } from './ui/skeleton';
-import type { Roadmap } from '@puente/training';
-import { NoMatchPanel } from './exploration/NoMatchPanel';
-import { readExplorationSession } from '../lib/exploration-session';
-import { saveExplorationSession } from '../lib/exploration-session';
-import type { PreferencesDraft } from '../lib/preferences';
-import { useExploreVacancies } from '../lib/queries/exploration';
-import { useRequestRoadmap } from '../lib/queries/roadmap';
+import { Progress } from './ui/progress';
+import { orderMatchesByDecision } from './exploration/utils';
 
 export interface VacantesViewProps {
   result?: ExplorationResult | null;
   loading?: boolean;
+  decisions?: MatchDecision[];
+  decisionsLoading?: boolean;
 }
 
 const money = (min: number | null, max: number | null) => {
@@ -26,53 +24,13 @@ const money = (min: number | null, max: number | null) => {
   return `USD ${min} – ${max}`;
 };
 
-const PREFERENCE_METADATA = new Set(['schema_version', 'preferences_id', 'origin', 'created_at', 'updated_at']);
-
-function toPreferencesDraft(preferences: ExplorationResult['preferences']): PreferencesDraft {
-  return Object.fromEntries(Object.entries(preferences).filter(([key]) => !PREFERENCE_METADATA.has(key))) as PreferencesDraft;
-}
-
-export function VacantesView({ result = null, loading = false }: VacantesViewProps) {
-  const [sessionResult, setSessionResult] = useState<ExplorationResult | null>(result);
-  const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
+export function VacantesView({ result = null, loading = false, decisions = [], decisionsLoading = false }: VacantesViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
-  const exploreMutation = useExploreVacancies();
-  const roadmapMutation = useRequestRoadmap();
-  useEffect(() => {
-    const session = readExplorationSession();
-    if (session) {
-      setSessionResult(session.result);
-      setRoadmap(session.roadmap);
-    }
-  }, []);
-
-  const displayedResult = result ?? sessionResult;
-  const matches = displayedResult?.matches ?? [];
-  const selected = matches.find((match) => match.vacancy.jobId === selectedId) ?? null;
-
-  async function enableTrainingAndRebuild() {
-    if (!displayedResult) return;
-    const nextPreferences: PreferencesDraft = { ...toPreferencesDraft(displayedResult.preferences), willing_to_train: true };
-
-    try {
-      const explored = await exploreMutation.mutateAsync(nextPreferences);
-      let generatedRoadmap: Roadmap | null = null;
-      if (explored.noMatch?.roadmapRequested) {
-        try {
-          generatedRoadmap = (await roadmapMutation.mutateAsync(explored)).roadmap;
-        } catch {
-          // The roadmap is advisory; the refreshed no-match explanation remains useful.
-        }
-      }
-      setSessionResult(explored);
-      setRoadmap(generatedRoadmap);
-      saveExplorationSession(explored, generatedRoadmap);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'No se pudo actualizar la exploración');
-    }
-  }
+  const matches = result?.matches ?? [];
+  const orderedMatches = orderMatchesByDecision(matches, decisions, decisionsLoading);
+  const selected = orderedMatches.find((match) => match.vacancy.jobId === selectedId) ?? null;
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('v');
@@ -114,34 +72,38 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
     {notice ? <div className="toast-notice" role="status">{notice}</div> : null}
     <div className="vacantes-heading">
       <div><p className="eyebrow">Explora oportunidades</p><h1>Vacantes para ti</h1><p className="lead">Encontramos oportunidades que se ajustan a lo que buscas.</p></div>
-       <span className="vacantes-count">{displayedResult?.summary.matched ?? 0} compatibles</span>
+      <span className="vacantes-count">{result?.summary.matched ?? 0} compatibles</span>
     </div>
     {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <Skeleton key={id} className="vacancy-skeleton" />)}</div> : <>
-      {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
-        {displayedResult?.noMatch ? (
-          <NoMatchPanel result={displayedResult} roadmap={roadmap} onEnableTraining={enableTrainingAndRebuild} />
-        ) : null}
-       {displayedResult?.excluded.length ? <p className="excluded-summary"><strong>{displayedResult.excluded.length} vacantes excluidas</strong> · {topCauses(displayedResult.excluded)}</p> : null}
+       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{orderedMatches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} decision={decisions.find((d) => d.vacancyId === match.vacancy.jobId)} decisionsLoading={decisionsLoading} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
+      {result?.noMatch?.nearMatches.length ? <NearMatches matches={result.noMatch.nearMatches} /> : null}
+      {result?.excluded.length ? <p className="excluded-summary"><strong>{result.excluded.length} vacantes excluidas</strong> · {topCauses(result.excluded)}</p> : null}
     </>}
-    <VacancyDetail match={selected} open={Boolean(selected)} onClose={close} />
+     <VacancyDetail match={selected} decision={selected ? decisions.find((d) => d.vacancyId === selected.vacancy.jobId) : undefined} open={Boolean(selected)} onClose={close} />
   </main>;
 }
 
-const VacancyCard = forwardRef<HTMLButtonElement, { match: VacancyMatch; onOpen: (match: VacancyMatch) => void }>(function VacancyCard({ match, onOpen }, ref) {
+const VacancyCard = forwardRef<HTMLButtonElement, { match: VacancyMatch; decision?: MatchDecision; decisionsLoading: boolean; onOpen: (match: VacancyMatch) => void }>(function VacancyCard({ match, decision, decisionsLoading, onOpen }, ref) {
   const { vacancy, freshness } = match;
   return <button ref={ref} className="vacancy-card" onClick={() => onOpen(match)} aria-label={`Ver detalles de ${vacancy.title}`}>
     <span className="vacancy-card-top"><span className="vacancy-modality">{MODALITY_LABELS[vacancy.modality]}</span><span>{freshness.label}</span></span>
     <strong className="vacancy-title">{vacancy.title}</strong><span className="vacancy-company">{vacancy.company ?? 'Empresa no indicada'}</span>
-    <span className="vacancy-meta">{vacancy.location.raw ?? vacancy.location.district ?? 'Ubicación no indicada'} · {money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</span>
+     <span className="vacancy-meta">{vacancy.location.raw ?? vacancy.location.district ?? 'Ubicación no indicada'} · {money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</span>
+     {decisionsLoading ? <span className="readiness-skeleton" aria-label="Cargando preparación" /> : decision ? <Readiness decision={decision} /> : null}
     <span className="vacancy-card-action">Ver detalles <span aria-hidden="true">→</span></span>
   </button>;
 });
 VacancyCard.displayName = 'VacancyCard';
 
+function NearMatches({ matches }: { matches: NearMatch[] }) { return <section className="near-matches" aria-labelledby="near-heading"><h2 id="near-heading">Casi listas para ti</h2><div className="near-list">{matches.map(({ vacancy, warnings }) => <article key={vacancy.jobId}><strong>{vacancy.title}</strong><p>{warnings[0] ?? 'Hay un requisito que todavía bloquea esta vacante.'}</p></article>)}</div></section>; }
 function topCauses(excluded: NonNullable<ExplorationResult['excluded']>) { return excluded.flatMap((item) => item.failedConstraints.map((cause) => cause.detail)).slice(0, 3).join(' · '); }
 
-function VacancyDetail({ match, open, onClose }: { match: VacancyMatch | null; open: boolean; onClose: () => void }) {
-  if (!match) return null;
+function Readiness({ decision }: { decision: MatchDecision }) { return <span className="readiness"><strong>Preparación {decision.score}%</strong><Progress value={decision.score} aria-label={`Preparación ${decision.score}%`} /></span>; }
+
+function VacancyDetail({ match, decision, open, onClose }: { match: VacancyMatch | null; decision?: MatchDecision; open: boolean; onClose: () => void }) {
+   if (!match) return null;
   const { vacancy, freshness } = match;
-  return <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}><SheetContent side="right" className="vacancy-detail"><SheetHeader><SheetTitle>{vacancy.title}</SheetTitle><SheetDescription>{vacancy.company ?? 'Empresa no indicada'} · {freshness.label}</SheetDescription></SheetHeader><div className="vacancy-detail-body"><p><strong>Modalidad</strong><br />{MODALITY_LABELS[vacancy.modality]}</p><p><strong>Ubicación</strong><br />{vacancy.location.raw ?? vacancy.location.district ?? 'No indicada'}</p><p><strong>Salario</strong><br />{money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</p><p><strong>Por qué coincide</strong></p><ul>{match.matchReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div><Button asChild size="lg" className="vacancy-original"><a href={vacancy.provenance.sourceUrl} target="_blank" rel="noreferrer">Ver vacante original <span className="sr-only">(se abre en otra pestaña)</span> ↗</a></Button></SheetContent></Sheet>;
+   const missing = decision?.hardConstraints.filter((item) => !item.satisfied) ?? [];
+   const have = decision?.scoreBreakdown.filter((item) => item.rawScore > 0) ?? [];
+   return <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}><SheetContent side="right" className="vacancy-detail"><SheetHeader><SheetTitle>{vacancy.title}</SheetTitle><SheetDescription>{vacancy.company ?? 'Empresa no indicada'} · {freshness.label}</SheetDescription></SheetHeader><div className="vacancy-detail-body"><p><strong>Modalidad</strong><br />{MODALITY_LABELS[vacancy.modality]}</p><p><strong>Ubicación</strong><br />{vacancy.location.raw ?? vacancy.location.district ?? 'No indicada'}</p><p><strong>Salario</strong><br />{money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</p>{decision ? <><h3>Preparación {decision.score}%</h3><Progress value={decision.score} aria-label={`Preparación ${decision.score}%`} /><h3>Lo que ya tienes</h3><ul>{have.map((item) => <li key={item.dimension}>{item.reasons.join(' ')}</li>)}</ul><h3>Lo que te falta</h3><ul>{missing.length ? missing.map((item) => <li key={item.id}>{item.reason}</li>) : <li>No se detectaron brechas.</li>}</ul></> : <p>Calculando preparación…</p>}</div><Button asChild size="lg" className="vacancy-original"><a href={vacancy.provenance.sourceUrl} target="_blank" rel="noreferrer">Ver vacante original <span className="sr-only">(se abre en otra pestaña)</span> ↗</a></Button></SheetContent></Sheet>;
 }
