@@ -4,8 +4,8 @@
   "prNumber": 26,
   "branch": "feat/issue-20-integrate-solver-seam-agent-runtime-geocoding-google-maps",
   "fixedPoint": "main",
-  "reviewPasses": 2,
-  "lastImplementationCommit": "f724484",
+  "reviewPasses": 6,
+  "lastImplementationCommit": "8756b26",
   "completed": [
     "Blocked pair evaluation is rejected before solver invocation.",
     "Unknown local geocoding results are rejected instead of silently scored at the Panama City default."
@@ -20,14 +20,13 @@
   },
   "deferred": [
     {
-      "finding": "Production workflow does not receive validated profiles/vacancies or invoke MatchingService; production Google Maps wiring and freshness warnings depend on that boundary.",
+      "finding": "Production workflow does not automatically receive validated profiles/vacancies; deterministic matching runs only when matchingInput is injected and otherwise falls through to the LLM path.",
       "owner": "KerubeDev",
       "followUpTicket": 27,
-      "reason": "WorkflowRunRequest currently carries only raw candidateText and vacancyText; implementing this here would require inventing or parsing unvalidated domain facts."
+      "reason": "WorkflowRunRequest currently carries only raw candidateText and vacancyText; implementing automatic validated profile/vacancy construction requires a separate input-contract decision."
     }
   ],
-  "remaining": [
-    "Duplicated preparation logic is a non-blocking judgement-call smell."
-  ],
-  "nextConsumer": "implement-review-fixes for issue #27, then review-pr"
+  "remaining": [],
+  "loopBlocker": "The same production-input-contract finding recurred across three consecutive review passes.",
+  "nextConsumer": "issue #27 implementation, then review-pr"
 }
