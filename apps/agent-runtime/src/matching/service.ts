@@ -181,7 +181,10 @@ export class MatchingService {
       input.vacancies,
       input.now?.() ?? new Date(),
     );
-    warnings.unshift(...(this.deps.warnings ?? []));
+    warnings.unshift(
+      ...(this.deps.warnings ?? []),
+      ...(homeResult.fallbackReason ? [homeResult.fallbackReason] : []),
+    );
 
     if (inputs.length === 0) {
       throw new MatchingInputError(
@@ -214,7 +217,16 @@ export class MatchingService {
     vacancy: VacancyMatchInput,
     options: EvaluatePairOptions = {},
   ): Promise<MatchDecision> {
-    return (await this.evaluatePairWithMetadata(profile, context, vacancy, options)).decision;
+    const result = await this.evaluatePairWithMetadata(profile, context, vacancy, options);
+    return result.warnings.length > 0
+      ? {
+          ...result.decision,
+          reasons: [
+            ...result.decision.reasons,
+            ...result.warnings.map((warning) => `Freshness/geocoding warning: ${warning}`),
+          ],
+        }
+      : result.decision;
   }
 
   async evaluatePairWithMetadata(
@@ -253,6 +265,7 @@ export class MatchingService {
       geocoding: { home: homeResult, vacancy: vacancyResult },
       warnings: [
         ...(this.deps.warnings ?? []),
+        ...(homeResult.fallbackReason ? [homeResult.fallbackReason] : []),
         ...(freshnessWarning ? [freshnessWarning] : []),
         ...(vacancyResult.fallbackReason ? [vacancyResult.fallbackReason] : []),
       ],
