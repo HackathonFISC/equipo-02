@@ -47,7 +47,7 @@ npm start
 npm run dev
 ```
 
-`npm run dev` abre el intake en http://localhost:3000. `npm start` levanta el servicio de
+`npm run dev` abre el intake en http://localhost:3001. `npm start` levanta el servicio de
 postulación. Los borradores y envíos con roles están en `docs/how-to/application-runtime.md`.
 Las firmas asumidas de matching (#8) y del plano de workflow (#9) están en
 `docs/reference/assumed-contracts.md`.
