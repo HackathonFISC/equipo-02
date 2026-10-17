@@ -5,6 +5,11 @@ import { usePathname } from 'next/navigation';
 import { BriefcaseBusiness, CircleUserRound, FileText, Map, Route } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+function isBarePath(pathname: string) {
+  if (pathname === '/' || pathname === '/chat') return true;
+  return ['/ingresar', '/orientador', '/empresa'].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 const navigation = [
   { href: '/vacantes', label: 'Vacantes', icon: BriefcaseBusiness },
   { href: '/ruta', label: 'Mi ruta', icon: Route },
@@ -14,7 +19,7 @@ const navigation = [
 
 export function CandidateShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isCandidateSurface = pathname !== '/' && pathname !== '/chat' && pathname !== '/ingresar';
+  const isCandidateSurface = !isBarePath(pathname);
 
   if (!isCandidateSurface) return <>{children}</>;
 

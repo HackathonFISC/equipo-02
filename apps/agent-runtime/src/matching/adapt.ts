@@ -14,12 +14,12 @@ import type {
   CandidateTransport,
   EvidenceSource,
   GeoPoint,
+  MatchDecision,
   SkillLevel,
   SolverCandidate,
   SolverVacancy,
   VacancyRequirement,
   VacancySchedule,
-  MatchDecision,
 } from "@puente/solver";
 import { getRankableRequirements } from "../vacancy/ranking";
 
