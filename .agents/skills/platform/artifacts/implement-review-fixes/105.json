@@ -1,0 +1,27 @@
+{
+  "status": "implemented",
+  "pr": 105,
+  "fixedPoint": "origin/main (7acb1e3)",
+  "branch": "feat/issue-91-build-the-durable-chat-turn-path",
+  "commitSha": "91a1574",
+  "planComment": "https://github.com/HackathonFISC/equipo-02/pull/105#issuecomment-6233011331",
+  "implementationComment": "https://github.com/HackathonFISC/equipo-02/pull/105#issuecomment-6233049981",
+  "completedItems": [
+    "Spec blocker: queue claims now enforce per-candidate session-version ordering in memory and SQL; future-version jobs remain queued/retryable until earlier turns commit instead of being terminally dead-lettered.",
+    "Spec required: added an opt-in PostgreSQL/Neon integration suite covering migration-backed insert, duplicate-key reuse, lease claim, success acknowledgement, and concurrent SKIP LOCKED claims.",
+    "Spec required: replaying an existing succeeded Idempotency-Key now returns HTTP 200 with the existing job and completed result; queued/running/failed replays retain the job handle behavior.",
+    "Added regression coverage for future-version ordering and completed idempotent replay."
+  ],
+  "validation": [
+    "npx eslint on all changed source and test files - pass",
+    "npm run typecheck - pass",
+    "npx vitest run apps/web/tests/chat-jobs.test.ts apps/web/tests/chat-jobs.integration.test.ts apps/web/tests/chat-turns-route.test.ts apps/web/tests/chat-worker.test.ts - 35 passed, 2 skipped",
+    "npm test - 690 passed, 10 skipped",
+    "npm run gate:ci - pass; 90.39% statements, 79.59% branches, 93.99% functions, 92.58% lines"
+  ],
+  "skippedValidation": [
+    "Opt-in PostgreSQL/Neon integration execution was attempted with the configured local DATABASE_URL but could not connect from this environment (TCP ETIMEDOUT/ENETUNREACH). The integration suite is present and skips unless RUN_CHAT_JOBS_DB_INTEGRATION=1 is explicitly set."
+  ],
+  "remaining": "The parent spec's backpressure and retry backoff/jitter remain deferred as documented in the plan. Real database execution still requires a network-accessible PostgreSQL/Neon fixture.",
+  "scopeNotes": "Only the three planned Spec corrections were implemented. Standards-axis judgement-call smells and unrelated parent-spec work were not expanded. Existing generated .next and trace changes were left untouched."
+}
