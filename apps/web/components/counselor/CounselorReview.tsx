@@ -37,6 +37,13 @@ export function CounselorReview({ draftId }: { draftId: string }) {
   const tooShort = trimmed.length < MIN_REASON_LENGTH;
   const decided = draft.status !== 'open' || draft.counselorApproved || done !== null;
 
+  const decidedMessage =
+    done === 'rejections' || draft.status === 'rejected'
+      ? 'Rechazaste esta postulación.'
+      : draft.status === 'submitted'
+        ? 'Esta postulación ya fue enviada.'
+        : 'Aprobaste esta postulación.';
+
   function submit(decision: CounselorDecision) {
     if (tooShort) return;
     decide.mutate(
@@ -112,9 +119,7 @@ export function CounselorReview({ draftId }: { draftId: string }) {
 
       {decided ? (
         <p role="status">
-          {done === 'rejections' || draft.status === 'rejected'
-            ? 'Rechazaste esta postulación.'
-            : 'Aprobaste esta postulación.'}
+          {decidedMessage}
         </p>
       ) : (
         <form className="grid gap-3" onSubmit={(event) => event.preventDefault()}>
