@@ -339,6 +339,15 @@ export class ApplicationService {
       .map((submission) => this.submitView(submission, false));
   }
 
+  readSubmission(session: unknown, submissionId: string): SubmitView {
+    const actor = this.actor(session);
+    this.requireRole(actor, "employer", "Only an employer can read submissions.");
+    const submission = this.submissionById(submissionId);
+    const draft = this.draftById(submission.draftId);
+    this.requireEmployerOrganization(actor, draft);
+    return this.submitView(submission, false);
+  }
+
   private actor(session: unknown): Actor {
     return actorFromBetterAuthSession(session, this.clock(), this.sessionSecret);
   }

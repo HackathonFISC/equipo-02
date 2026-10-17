@@ -89,6 +89,12 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, context: Requ
     return;
   }
 
+  const submissionRead = /^\/submissions\/([^/]+)$/.exec(path);
+  if (req.method === "GET" && submissionRead) {
+    writeJson(res, 200, context.service.readSubmission(session, submissionRead[1] ?? ""), context.secrets);
+    return;
+  }
+
   if (req.method === "POST" && path === "/drafts") {
     writeJson(res, 201, context.service.createDraft(session, body), context.secrets);
     return;
