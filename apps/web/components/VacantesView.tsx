@@ -3,9 +3,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import type { ExplorationResult, NearMatch, VacancyMatch } from '@puente/catalog';
 import { MODALITY_LABELS } from '@puente/catalog';
-import { Button } from './ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
-import { Skeleton } from './ui/skeleton';
 
 export interface VacantesViewProps {
   result?: ExplorationResult | null;
@@ -68,7 +65,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       <div><p className="eyebrow">Explora oportunidades</p><h1>Vacantes para ti</h1><p className="lead">Encontramos oportunidades que se ajustan a lo que buscas.</p></div>
       <span className="vacantes-count">{result?.summary.matched ?? 0} compatibles</span>
     </div>
-    {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <Skeleton key={id} className="vacancy-skeleton" />)}</div> : <>
+    {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <div key={id} className="vacancy-skeleton" />)}</div> : <>
       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
       {result?.noMatch?.nearMatches.length ? <NearMatches matches={result.noMatch.nearMatches} /> : null}
       {result?.excluded.length ? <p className="excluded-summary"><strong>{result.excluded.length} vacantes excluidas</strong> · {topCauses(result.excluded)}</p> : null}
@@ -94,5 +91,5 @@ function topCauses(excluded: NonNullable<ExplorationResult['excluded']>) { retur
 function VacancyDetail({ match, open, onClose }: { match: VacancyMatch | null; open: boolean; onClose: () => void }) {
   if (!match) return null;
   const { vacancy, freshness } = match;
-  return <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}><SheetContent side="right" className="vacancy-detail"><SheetHeader><SheetTitle>{vacancy.title}</SheetTitle><SheetDescription>{vacancy.company ?? 'Empresa no indicada'} · {freshness.label}</SheetDescription></SheetHeader><div className="vacancy-detail-body"><p><strong>Modalidad</strong><br />{MODALITY_LABELS[vacancy.modality]}</p><p><strong>Ubicación</strong><br />{vacancy.location.raw ?? vacancy.location.district ?? 'No indicada'}</p><p><strong>Salario</strong><br />{money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</p><p><strong>Por qué coincide</strong></p><ul>{match.matchReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div><Button asChild size="lg" className="vacancy-original"><a href={vacancy.provenance.sourceUrl} target="_blank" rel="noreferrer">Ver vacante original <span className="sr-only">(se abre en otra pestaña)</span> ↗</a></Button></SheetContent></Sheet>;
+  return <div className="sheet-backdrop" role="presentation" onClick={onClose}><aside className="vacancy-detail" role="dialog" aria-modal="true" aria-labelledby="vacancy-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" onClick={onClose} aria-label="Cerrar detalles">Cerrar</button><h2 id="vacancy-detail-title">{vacancy.title}</h2><p>{vacancy.company ?? 'Empresa no indicada'} · {freshness.label}</p><div className="vacancy-detail-body"><p><strong>Modalidad</strong><br />{MODALITY_LABELS[vacancy.modality]}</p><p><strong>Ubicación</strong><br />{vacancy.location.raw ?? vacancy.location.district ?? 'No indicada'}</p><p><strong>Salario</strong><br />{money(vacancy.salary.minUsd, vacancy.salary.maxUsd)}</p><p><strong>Por qué coincide</strong></p><ul>{match.matchReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div><a className="vacancy-original" href={vacancy.provenance.sourceUrl} target="_blank" rel="noreferrer">Ver vacante original ↗</a></aside></div>;
 }

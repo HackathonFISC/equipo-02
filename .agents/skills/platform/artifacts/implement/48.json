@@ -1,0 +1,24 @@
+{
+  "status": "partial",
+  "changes": [
+    "Created the issue branch feat/issue-48-surface-saved-search-matches.",
+    "Included the reviewed #41 candidate shell and /vacantes route needed by this ticket.",
+    "Adapted the prerequisite vacancy detail view to the current web package without unavailable UI dependencies."
+  ],
+  "validation": {
+    "acceptanceCriteriaMet": false,
+    "commands": ["npm exec --workspace @puente/web -- tsc --noEmit"],
+    "skipped": ["Saved-search last-visit handler and end-to-end flow"],
+    "notes": "Issue #48 depends on #41, whose implementation was not present on the starting branch. The prerequisite was cherry-picked, but the requested saved-search notification behavior still needs implementation. Typecheck also reports pre-existing agent-runtime WorkflowServices errors."
+  },
+  "commitSha": "373d3d5",
+  "branch": "feat/issue-48-surface-saved-search-matches",
+  "nextConsumer": "implement",
+  "blockedBy": ["HackathonFISC/equipo-02#41 prerequisite integration", "remaining issue #48 behavior"],
+  "riskRemaining": "No badge, last-visit persistence, or new-since-last-visit section has been delivered yet.",
+  "qualityGateResults": {
+    "gateIde": "skipped",
+    "gatePreCommit": "skipped",
+    "gateCi": "skipped"
+  }
+}
