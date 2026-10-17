@@ -55,6 +55,10 @@ export interface SubmitView {
   replayed: boolean;
   interview: "pending_employer_approval" | "approved" | "rejected";
   employerOrgId?: string;
+  traceId?: string;
+  vacancyTitle?: string;
+  documents?: ApplicationDocuments;
+  evidence?: EvidenceItem[];
   history?: HistoryEntry[];
 }
 
@@ -234,13 +238,7 @@ export class ApplicationService {
     draft.status = "submitted";
     this.submissions.set(submission.id, submission);
     this.audit(actor, "submission", action);
-    const view: SubmitView = {
-      submissionId: submission.id,
-      draftId: draft.id,
-      replayed: false,
-      interview: submission.interview,
-    };
-    this.guard(view);
+    const view = this.submitView(submission, false);
     await this.idempotency.put({ key: action.idempotencyKey, fingerprint, response: view });
     return view;
   }
@@ -554,12 +552,18 @@ export class ApplicationService {
   }
 
   private submitView(submission: StoredSubmission, replayed: boolean): SubmitView {
+    const draft = this.draftById(submission.draftId);
+    const approved = this.draftView(draft);
     const view: SubmitView = {
       submissionId: submission.id,
       draftId: submission.draftId,
       replayed,
       interview: submission.interview,
-      employerOrgId: this.draftById(submission.draftId).input.employerOrgId,
+      employerOrgId: draft.input.employerOrgId,
+      traceId: draft.input.traceId,
+      vacancyTitle: draft.input.vacancyTitle,
+      documents: approved.documents,
+      evidence: approved.evidence,
       history: submission.history.map(({ actorRole, timestamp, reason, action }) => ({ actorRole, timestamp, reason, action })),
     };
     this.guard(view);

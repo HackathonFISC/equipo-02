@@ -31,12 +31,12 @@ describe('employer queue', () => {
   it('renders pending submissions as cards and links to the detail', async () => {
     server.use(
       http.get('/api/applications/submissions', () =>
-        HttpResponse.json({ submissions: [{ submissionId: 'sub-1', draftId: 'draft-1', replayed: false, interview: 'pending_employer_approval' }] }),
+        HttpResponse.json({ submissions: [{ submissionId: 'sub-1', draftId: 'draft-1', replayed: false, interview: 'pending_employer_approval', traceId: 'trace-1', vacancyTitle: 'Cajero' }] }),
       ),
     );
     const { container } = render(<SubmissionQueue />, { wrapper });
 
-    const link = await screen.findByRole('link', { name: /Postulación sub-1/ });
+    const link = await screen.findByRole('link', { name: /Cajero/ });
     expect(link).toHaveAttribute('href', '/empresa/sub-1');
     expect(screen.getByText('Pendiente')).toBeInTheDocument();
     expect((await axe(container)).violations).toEqual([]);

@@ -37,7 +37,7 @@ export function SubmissionQueue() {
             <Card className="transition-colors hover:bg-muted/50">
               <CardHeader className="gap-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base">Postulación {submission.submissionId.slice(0, 8)}</CardTitle>
+                  <CardTitle className="text-base">{submission.vacancyTitle ?? `Postulación ${submission.submissionId.slice(0, 8)}`}</CardTitle>
                   <Badge tone="warning">Pendiente</Badge>
                 </div>
                 <CardDescription>Revisar documentos y decidir si pasa a entrevista.</CardDescription>

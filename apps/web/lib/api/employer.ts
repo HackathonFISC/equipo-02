@@ -22,15 +22,14 @@ export interface EmployerSubmission {
   replayed: boolean;
   interview: 'pending_employer_approval' | 'approved' | 'rejected';
   employerOrgId?: string;
+  traceId: string;
+  vacancyTitle: string;
 }
 
-/**
- * Detail returned by GET /api/applications/submissions/:id.
- * Requires the runtime to expose `traceId` and `documents` on the employer read (see #44 report).
- */
+/** Detail returned by GET /api/applications/submissions/:id (candidate-approved evidence only). */
 export interface EmployerSubmissionDetail extends EmployerSubmission {
-  traceId: string;
   documents: ApplicationDocuments;
+  evidence: { id: string; kind: string; text: string; credentialStatus: string }[];
 }
 
 export type InterviewDecision = 'approved' | 'rejected';
@@ -59,8 +58,8 @@ function actionBody(submission: EmployerSubmissionDetail, reason: string, decisi
       idempotencyKey,
       agent: 'market_and_matching',
       schemaId: 'application.interview_decision',
-      guardrails: [],
-      dqlState: 'processed',
+      guardrails: [{ stage: 'output', allowed: true, code: 'ok' }],
+      dqlState: 'validated',
     },
   };
 }
