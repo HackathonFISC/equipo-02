@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { ThemeProvider } from '../components/theme-provider';
+import { CandidateShell } from '../components/CandidateShell';
 import './globals.css';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" suppressHydrationWarning>
       <body className={plusJakartaSans.variable}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
+          <CandidateShell>{children}</CandidateShell>
         </ThemeProvider>
       </body>
     </html>
