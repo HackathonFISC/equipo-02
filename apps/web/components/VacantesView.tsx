@@ -9,6 +9,10 @@ import { Skeleton } from './ui/skeleton';
 import type { Roadmap } from '@puente/training';
 import { NoMatchPanel } from './exploration/NoMatchPanel';
 import { readExplorationSession } from '../lib/exploration-session';
+import { saveExplorationSession } from '../lib/exploration-session';
+import type { PreferencesDraft } from '../lib/preferences';
+import { useExploreVacancies } from '../lib/queries/exploration';
+import { useRequestRoadmap } from '../lib/queries/roadmap';
 
 export interface VacantesViewProps {
   result?: ExplorationResult | null;
@@ -22,12 +26,20 @@ const money = (min: number | null, max: number | null) => {
   return `USD ${min} – ${max}`;
 };
 
+const PREFERENCE_METADATA = new Set(['schema_version', 'preferences_id', 'origin', 'created_at', 'updated_at']);
+
+function toPreferencesDraft(preferences: ExplorationResult['preferences']): PreferencesDraft {
+  return Object.fromEntries(Object.entries(preferences).filter(([key]) => !PREFERENCE_METADATA.has(key))) as PreferencesDraft;
+}
+
 export function VacantesView({ result = null, loading = false }: VacantesViewProps) {
   const [sessionResult, setSessionResult] = useState<ExplorationResult | null>(result);
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
+  const exploreMutation = useExploreVacancies();
+  const roadmapMutation = useRequestRoadmap();
   useEffect(() => {
     const session = readExplorationSession();
     if (session) {
@@ -39,6 +51,28 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
   const displayedResult = result ?? sessionResult;
   const matches = displayedResult?.matches ?? [];
   const selected = matches.find((match) => match.vacancy.jobId === selectedId) ?? null;
+
+  async function enableTrainingAndRebuild() {
+    if (!displayedResult) return;
+    const nextPreferences: PreferencesDraft = { ...toPreferencesDraft(displayedResult.preferences), willing_to_train: true };
+
+    try {
+      const explored = await exploreMutation.mutateAsync(nextPreferences);
+      let generatedRoadmap: Roadmap | null = null;
+      if (explored.noMatch?.roadmapRequested) {
+        try {
+          generatedRoadmap = (await roadmapMutation.mutateAsync(explored)).roadmap;
+        } catch {
+          // The roadmap is advisory; the refreshed no-match explanation remains useful.
+        }
+      }
+      setSessionResult(explored);
+      setRoadmap(generatedRoadmap);
+      saveExplorationSession(explored, generatedRoadmap);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'No se pudo actualizar la exploración');
+    }
+  }
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('v');
@@ -84,7 +118,9 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
     </div>
     {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <Skeleton key={id} className="vacancy-skeleton" />)}</div> : <>
       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
-       {displayedResult?.noMatch ? <NoMatchPanel result={displayedResult} roadmap={roadmap} /> : null}
+        {displayedResult?.noMatch ? (
+          <NoMatchPanel result={displayedResult} roadmap={roadmap} onEnableTraining={enableTrainingAndRebuild} />
+        ) : null}
        {displayedResult?.excluded.length ? <p className="excluded-summary"><strong>{displayedResult.excluded.length} vacantes excluidas</strong> · {topCauses(displayedResult.excluded)}</p> : null}
     </>}
     <VacancyDetail match={selected} open={Boolean(selected)} onClose={close} />
