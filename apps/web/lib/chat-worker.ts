@@ -148,7 +148,6 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       context,
     }));
   } catch (cause) {
-    observeChatJob('worker_error');
     if (cause instanceof Error && /timeout/i.test(cause.message)) observeChatJob('provider_timeout');
     return settle(jobs, job, executionFailure(cause), safeLog, durationSeconds());
   }
