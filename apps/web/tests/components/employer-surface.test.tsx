@@ -61,6 +61,17 @@ describe('employer submission decision', () => {
     expect((await axe(container)).violations).toEqual([]);
   });
 
+  it('shows a read-only message instead of the form once decided', async () => {
+    server.use(
+      http.get('/api/applications/submissions/sub-1', () => HttpResponse.json({ ...detail, interview: 'rejected' })),
+    );
+    render(<SubmissionDecision submissionId="sub-1" />, { wrapper });
+
+    expect(await screen.findByText('Esta postulación ya fue decidida.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'No avanza' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pasar a entrevista' })).not.toBeInTheDocument();
+  });
+
   it('requires a reason before deciding', async () => {
     let posted = false;
     server.use(

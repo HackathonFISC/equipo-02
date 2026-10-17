@@ -62,6 +62,13 @@ export interface SubmitView {
   history?: HistoryEntry[];
 }
 
+export interface SubmissionSummary {
+  submissionId: string;
+  vacancyTitle: string;
+  interview: SubmitView["interview"];
+  traceId: string;
+}
+
 export interface HistoryEntry {
   action: string;
   actorRole: AuthRole;
@@ -329,7 +336,7 @@ export class ApplicationService {
     return this.draftView(draft);
   }
 
-  listSubmissions(session: unknown, interview: string): SubmitView[] {
+  listSubmissions(session: unknown, interview: string): SubmissionSummary[] {
     const actor = this.actor(session);
     this.requireRole(actor, "employer", "Only an employer can list submissions.");
     if (interview !== "pending_employer_approval") {
@@ -338,10 +345,17 @@ export class ApplicationService {
     return [...this.submissions.values()]
       .filter((submission) => {
         const draft = this.draftById(submission.draftId);
-        return submission.interview === interview &&
-          (draft.input.employerOrgId === undefined || draft.input.employerOrgId === actor.employerOrgId);
+        return submission.interview === interview && this.employerOwns(actor, draft);
       })
-      .map((submission) => this.submitView(submission, false));
+      .map((submission) => {
+        const draft = this.draftById(submission.draftId);
+        return {
+          submissionId: submission.id,
+          vacancyTitle: draft.input.vacancyTitle,
+          interview: submission.interview,
+          traceId: draft.input.traceId,
+        };
+      });
   }
 
   readSubmission(session: unknown, submissionId: string): SubmitView {
@@ -521,8 +535,13 @@ export class ApplicationService {
     return this.counselorGate(draft).length > 0;
   }
 
+  /** Fail closed: a draft without an organization is never visible to an employer. */
+  private employerOwns(actor: Actor, draft: StoredDraft): boolean {
+    return draft.input.employerOrgId !== undefined && draft.input.employerOrgId === actor.employerOrgId;
+  }
+
   private requireEmployerOrganization(actor: Actor, draft: StoredDraft): void {
-    if (draft.input.employerOrgId !== undefined && draft.input.employerOrgId !== actor.employerOrgId) {
+    if (!this.employerOwns(actor, draft)) {
       throw new ApplicationError("This submission belongs to another employer organization.", 403, "forbidden");
     }
   }

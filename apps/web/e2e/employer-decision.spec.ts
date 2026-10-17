@@ -38,6 +38,21 @@ test.describe("employer interview decision", () => {
     await expect(page.getByRole("status")).toContainText("Registramos que la postulación no avanza.");
   });
 
+  test("decides one as 'Pasar a entrevista'", async ({ page }) => {
+    await page.goto("/empresa");
+    const cards = page.getByRole("list", { name: "Postulaciones pendientes" }).getByRole("link");
+    test.skip((await cards.count()) === 0, "No pending submissions seeded.");
+
+    await cards.first().click();
+    await expect(page.getByRole("heading", { name: "Documentos enviados" })).toBeVisible();
+    await page.getByRole("button", { name: "Pasar a entrevista" }).click();
+    await expect(page.getByText("Escribe un motivo para continuar.")).toBeVisible();
+
+    await page.getByLabel(/Motivo de tu decisión/).fill("Cumple el perfil");
+    await page.getByRole("button", { name: "Pasar a entrevista" }).click();
+    await expect(page.getByRole("status")).toContainText("La postulación pasó a entrevista.");
+  });
+
   test("does not show a submission from another organization", async ({ page }) => {
     test.skip(!otherOrgSubmission, "E2E_OTHER_ORG_SUBMISSION_ID is not set.");
 

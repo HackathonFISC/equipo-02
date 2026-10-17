@@ -111,6 +111,9 @@ export function SubmissionDecision({ submissionId }: { submissionId: string }) {
         )}
       </section>
 
+      {submission.interview !== 'pending_employer_approval' ? (
+        <p role="status" className="text-sm font-medium">Esta postulación ya fue decidida.</p>
+      ) : (
       <form className="space-y-3" aria-label="Decisión de entrevista" onSubmit={(event) => event.preventDefault()}>
         <div className="space-y-2">
           <Label htmlFor={reasonId}>Motivo de tu decisión*</Label>
@@ -141,6 +144,7 @@ export function SubmissionDecision({ submissionId }: { submissionId: string }) {
           </Button>
         </div>
       </form>
+      )}
     </div>
   );
 }

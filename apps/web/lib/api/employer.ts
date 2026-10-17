@@ -15,7 +15,22 @@ export interface ApplicationDocuments {
   application: DraftFragment[];
 }
 
-/** Submission summary returned by GET /api/applications/submissions. */
+/** Slim queue item returned by GET /api/applications/submissions. */
+export interface EmployerSubmissionSummary {
+  submissionId: string;
+  vacancyTitle: string;
+  interview: 'pending_employer_approval' | 'approved' | 'rejected';
+  traceId: string;
+}
+
+export interface HistoryEntry {
+  action: string;
+  actorRole: string;
+  timestamp: string;
+  reason: string;
+}
+
+/** Submission returned by the decision endpoints. */
 export interface EmployerSubmission {
   submissionId: string;
   draftId: string;
@@ -29,6 +44,7 @@ export interface EmployerSubmission {
 /** Detail returned by GET /api/applications/submissions/:id (candidate-approved evidence only). */
 export interface EmployerSubmissionDetail extends EmployerSubmission {
   documents: ApplicationDocuments;
+  history?: HistoryEntry[];
   evidence: { id: string; kind: string; text: string; credentialStatus: string }[];
 }
 
@@ -68,8 +84,8 @@ function post(body: unknown): RequestInit {
   return { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) };
 }
 
-export async function listPendingSubmissions(): Promise<EmployerSubmission[]> {
-  const body = await request<{ submissions: EmployerSubmission[] }>(
+export async function listPendingSubmissions(): Promise<EmployerSubmissionSummary[]> {
+  const body = await request<{ submissions: EmployerSubmissionSummary[] }>(
     '/submissions?interview=pending_employer_approval',
   );
   return body.submissions;
@@ -82,7 +98,8 @@ export function readEmployerSubmission(submissionId: string): Promise<EmployerSu
 /** "Pasar a entrevista": records employer approval, then approves interview progression. */
 export async function passToInterview(submission: EmployerSubmissionDetail, reason: string): Promise<EmployerSubmission> {
   const id = encodeURIComponent(submission.submissionId);
-  await request(`/submissions/${id}/approvals`, post(actionBody(submission, reason)));
+  const approved = submission.history?.some((entry) => entry.actorRole === 'employer' && entry.action === 'approval');
+  if (!approved) await request(`/submissions/${id}/approvals`, post(actionBody(submission, reason)));
   return request<EmployerSubmission>(`/submissions/${id}/interview`, post(actionBody(submission, reason, 'approved')));
 }
 
