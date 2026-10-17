@@ -13,6 +13,7 @@ import { counselorGateReasons, type GateReason } from "./gates";
 import { actorFromBetterAuthSession, type Actor, type AuthRole } from "./roles";
 import { assertNoSecrets } from "./secrets";
 import { createMemoryIdempotencyStore, type IdempotencyStore } from "./store";
+import type { ShortlistSource } from "./shortlist";
 
 export interface DraftInput {
   traceId: string;
@@ -69,6 +70,15 @@ export interface SubmissionSummary {
   traceId: string;
 }
 
+export interface ShortlistEntry {
+  submissionId: string;
+  candidateId: string;
+  score: number;
+  aptitude: MatchDecision["aptitude"];
+  gapSummary: string[];
+  biasAlerts: MatchDecision["biasAlerts"];
+}
+
 export interface HistoryEntry {
   action: string;
   actorRole: AuthRole;
@@ -111,6 +121,7 @@ export interface ApplicationServiceOptions {
   secrets?: readonly string[];
   sessionSecret?: string;
   idempotency?: IdempotencyStore<SubmitView>;
+  shortlist?: ShortlistSource;
 }
 
 export class ApplicationService {
@@ -119,6 +130,7 @@ export class ApplicationService {
   private readonly secrets: readonly string[];
   private readonly sessionSecret: string;
   private readonly idempotency: IdempotencyStore<SubmitView>;
+  private readonly shortlist: ShortlistSource | undefined;
   private readonly drafts = new Map<string, StoredDraft>();
   private readonly submissions = new Map<string, StoredSubmission>();
   private readonly events: AuditEvent[] = [];
@@ -129,6 +141,7 @@ export class ApplicationService {
     this.secrets = options.secrets ?? [];
     this.sessionSecret = options.sessionSecret ?? "";
     this.idempotency = options.idempotency ?? createMemoryIdempotencyStore<SubmitView>();
+    this.shortlist = options.shortlist;
   }
 
   createDraft(session: unknown, raw: unknown): DraftView {
@@ -365,6 +378,41 @@ export class ApplicationService {
     const draft = this.draftById(submission.draftId);
     this.requireEmployerOrganization(actor, draft);
     return this.submitView(submission, false);
+  }
+
+  async shortlistForVacancy(session: unknown, vacancyId: string): Promise<ShortlistEntry[]> {
+    const actor = this.actor(session);
+    this.requireRole(actor, "employer", "Only an employer can rank submissions.");
+    if (!this.shortlist) throw new ApplicationError("Shortlist is not configured.", 503, "shortlist_unavailable");
+    const owner = this.shortlist.ownerOf(vacancyId);
+    if (!owner) throw new ApplicationError("Vacancy not found.", 404, "not_found");
+    if (owner !== actor.employerOrgId) {
+      throw new ApplicationError("This vacancy belongs to another employer organization.", 403, "forbidden");
+    }
+    const entries: ShortlistEntry[] = [];
+    for (const submission of this.submissions.values()) {
+      const draft = this.draftById(submission.draftId);
+      if (draft.input.vacancyId !== vacancyId || !this.employerOwns(actor, draft)) continue;
+      const result = await this.shortlist.match(draft.ownerId, vacancyId);
+      if (result.biasBlocked) return [];
+      const match = result.decision;
+      if (!match) continue;
+      if (match.candidateId !== draft.ownerId || match.vacancyId !== vacancyId) {
+        throw new ApplicationError("Ranking decision does not match the submission.", 422, "inconsistent_match");
+      }
+      entries.push({
+        submissionId: submission.id,
+        candidateId: draft.ownerId,
+        score: match.score.weightedTotal,
+        aptitude: match.aptitude,
+        gapSummary: match.gaps.map((gap) => gap.description),
+        biasAlerts: match.biasAlerts.map((alert) => ({ ...alert })),
+      });
+    }
+    // Code-point ordering keeps ties stable without depending on the host locale.
+    const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+    return entries.sort((left, right) => right.score - left.score ||
+      compare(left.candidateId, right.candidateId) || compare(left.submissionId, right.submissionId));
   }
 
   private actor(session: unknown): Actor {

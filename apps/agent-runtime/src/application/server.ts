@@ -3,6 +3,7 @@ import { createPgQuery, resolveDatabaseMode, type DatabaseMode } from "./databas
 import { ApplicationError } from "./errors";
 import { assertNoSecrets, collectSecretValues } from "./secrets";
 import { ApplicationService } from "./service";
+import { createShortlistSource } from "./shortlist";
 import { createSqlIdempotencyStore, type SqlQuery } from "./store";
 
 export interface ServerOptions {
@@ -27,13 +28,15 @@ export function createApplicationServer(options: ServerOptions = {}) {
   const databaseUrl = env.DATABASE_URL || env.NEON_DATABASE_URL || "";
   const useSql = databaseMode !== "memory" && databaseUrl.length > 0;
   const persistence = useSql ? "sql" : "memory";
+  const query = useSql ? (options.query ?? createPgQuery(databaseUrl)) : undefined;
   const service =
     options.service ??
     new ApplicationService({
       secrets,
       clock: options.clock,
       sessionSecret: env.BETTER_AUTH_SECRET ?? "",
-      idempotency: useSql ? createSqlIdempotencyStore(options.query ?? createPgQuery(databaseUrl)) : undefined,
+      idempotency: query ? createSqlIdempotencyStore(query) : undefined,
+      shortlist: createShortlistSource({ query, env, clock: options.clock ?? (() => new Date().toISOString()) }),
     });
   const context: RequestContext = { service, secrets, databaseMode, persistence };
   return createServer((req, res) => {
@@ -58,6 +61,12 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, context: Requ
   const body = req.method === "GET" ? {} : await readBody(req);
   assertNoSecrets(body, context.secrets);
   const session = resolveSession(req, body);
+
+  const shortlist = /^\/vacancies\/([^/]+)\/shortlist$/.exec(path);
+  if (req.method === "GET" && shortlist) {
+    writeJson(res, 200, { shortlist: await context.service.shortlistForVacancy(session, decodeURIComponent(shortlist[1] ?? "")) }, context.secrets);
+    return;
+  }
 
   if (req.method === "GET" && path === "/drafts") {
     writeJson(
