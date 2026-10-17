@@ -5,6 +5,7 @@ import {
   createSeedTrainingCatalog,
   type Modality,
   type Roadmap,
+  type BuildRoadmapOptions,
   type TrainingCatalog,
   type TrainingGap,
 } from '@puente/training';
@@ -14,6 +15,7 @@ export interface RoadmapHandlerDeps {
   /** Injected for tests; defaults to the bundled cached training catalogue. */
   trainingCatalog?: TrainingCatalog;
   now?: () => Date;
+  routing?: BuildRoadmapOptions['routing'];
 }
 
 /** Role definition id → training specialization slug used by the catalogue. */
@@ -122,7 +124,7 @@ export async function handleRoadmap(payload: unknown, deps: RoadmapHandlerDeps =
       },
     },
     catalog,
-    { now: deps.now },
+    { now: deps.now, routing: deps.routing },
   );
 
   return { status: 200, body: { roadmap, gaps, reason: 'no_viable_match' } };

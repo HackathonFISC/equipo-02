@@ -133,6 +133,16 @@ export function rankOpportunities({
       reasons: scores[dimension].reasons,
     }));
     const exclusionReasons = staticExclusionReasons(opportunity, preferences, now);
+    const commuteMinutes = scores.geography.commuteMinutes;
+    if (
+      commuteMinutes !== undefined &&
+      preferences.maxCommuteMinutes !== undefined &&
+      commuteMinutes > preferences.maxCommuteMinutes
+    ) {
+      exclusionReasons.push(
+        `El traslado estimado de ${commuteMinutes} min supera tu límite de ${preferences.maxCommuteMinutes} min.`,
+      );
+    }
     return {
       opportunity,
       score,

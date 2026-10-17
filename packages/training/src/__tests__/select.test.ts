@@ -85,4 +85,29 @@ describe("selectRoadmap", () => {
     const preferences: TrainingPreferences = { specializations: ["it_support"] };
     await expect(select(gaps, preferences)).resolves.toEqual(await select(gaps, preferences));
   });
+
+  it("rejects a cyclic prerequisite chain", async () => {
+    const cycleCatalog: TrainingCatalog = {
+      ...catalog,
+      opportunities: [
+        {
+          ...catalog.opportunities[0]!,
+          opportunityId: "CYCLE-A",
+          coveredSkills: [{ skillId: "CYCLE-A-SKILL", level: 1 }],
+          prerequisites: ["CYCLE-B-SKILL"],
+        },
+        {
+          ...catalog.opportunities[0]!,
+          opportunityId: "CYCLE-B",
+          coveredSkills: [{ skillId: "CYCLE-B-SKILL", level: 1 }],
+          prerequisites: ["CYCLE-A-SKILL"],
+        },
+      ],
+    };
+    const gaps = [gap("CYCLE-A-SKILL", 1), gap("CYCLE-B-SKILL", 1)];
+    const ranked = await rankOpportunities({ catalog: cycleCatalog, gaps, preferences: { specializations: [] }, now });
+    const result = await selectRoadmap(ranked, gaps, { specializations: [] }, []);
+    expect(result.selected).toEqual([]);
+    expect(result.unresolvedGaps).toEqual(gaps);
+  });
 });

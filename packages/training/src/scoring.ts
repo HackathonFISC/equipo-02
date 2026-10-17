@@ -11,6 +11,7 @@ import { gapDeficit, gapLabelForContribution } from "./gaps";
 export interface DimensionScore {
   rawScore: number;
   reasons: string[];
+  commuteMinutes?: number;
 }
 
 export interface GapCoverageScore extends DimensionScore {
@@ -225,6 +226,7 @@ export async function geographyScore(
   const rawScore = clampScore(100 - 55 * ratio);
   return {
     rawScore,
+    commuteMinutes: estimate.commuteMinutes,
     reasons: [
       `A unos ${estimate.distanceKm.toFixed(1)} km y ${estimate.commuteMinutes} min de tu ubicación (límite ${maxCommute} min; fuente ${estimate.source}).`,
     ],

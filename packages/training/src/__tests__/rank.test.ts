@@ -114,6 +114,22 @@ describe("dimension scorers", async () => {
     expect(far.rawScore).toBeLessThan(50);
   });
 
+  it("excludes an on-site opportunity beyond the commute ceiling", async () => {
+    const ranked = await rankOpportunities({
+      catalog,
+      gaps: [excelGap],
+      preferences: {
+        specializations: [],
+        home: { lat: 9.5, lng: -79.9 },
+        maxCommuteMinutes: 1,
+      },
+      now,
+    });
+    const distant = ranked.find((item) => item.opportunity.opportunityId === "TR-008");
+    expect(distant?.eligible).toBe(false);
+    expect(distant?.exclusionReasons.join(" ")).toContain("supera tu límite");
+  });
+
   it("computes schedule coverage and flags unavailable days", async () => {
     const coverage = scheduleCoverage(
       { days: [1, 3], startMinute: 1080, endMinute: 1260, weeklyHours: 6 },

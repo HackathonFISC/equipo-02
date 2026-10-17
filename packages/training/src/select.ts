@@ -48,6 +48,49 @@ function contributionFor(
   return result;
 }
 
+function contributionsAtLevels(
+  item: RankedOpportunity,
+  gaps: readonly TrainingGap[],
+  levels: ReadonlyMap<string, number>,
+): GapContribution[] {
+  return gaps.flatMap((gap) => {
+    const current = levels.get(gap.skillId) ?? gap.currentLevel;
+    const added = Math.max(
+      0,
+      Math.min(coveredSkillLevel(item.opportunity, gap.skillId) - current, gap.requiredLevel - current),
+    );
+    return added > 0 ? [{ skillId: gap.skillId, addedLevel: added }] : [];
+  });
+}
+
+function cyclicVariableIndices(
+  variables: readonly { item: RankedOpportunity }[],
+  heldSkills: readonly HeldSkill[],
+): Set<number> {
+  const state = new Map<number, 0 | 1 | 2>();
+  const cycles = new Set<number>();
+  const visit = (index: number, path: readonly number[]): void => {
+    if (state.get(index) === 1) {
+      const start = path.indexOf(index);
+      for (const cycleIndex of path.slice(start)) cycles.add(cycleIndex);
+      return;
+    }
+    if (state.get(index) === 2) return;
+    state.set(index, 1);
+    for (const prerequisite of variables[index]!.item.opportunity.prerequisites) {
+      if (heldSkillLevel(heldSkills, prerequisite) >= 1) continue;
+      for (const [providerIndex, provider] of variables.entries()) {
+        if (providerIndex !== index && coveredSkillLevel(provider.item.opportunity, prerequisite) >= 1) {
+          visit(providerIndex, [...path, index]);
+        }
+      }
+    }
+    state.set(index, 2);
+  };
+  variables.forEach((_, index) => visit(index, []));
+  return cycles;
+}
+
 function omissionReason(item: RankedOpportunity, unmet: readonly string[]): string {
   if (!item.eligible) return item.exclusionReasons[0] ?? "La oportunidad no es viable.";
   if (unmet.length > 0) return `No cumples los prerrequisitos: ${unmet.join(", ")}.`;
@@ -79,7 +122,13 @@ function buildRoadmapModel(
   const milpVariables = [
     // A tiny penalty makes the optimum canonical: do not select courses that
     // add no coverage unless they are needed as a prerequisite.
-    ...variables.map(({ name }) => ({ name, cost: -0.0001, lower: 0, upper: 1, integer: true })),
+    ...variables.map(({ name }, index) => ({
+      name,
+      cost: -0.0001,
+      lower: 0,
+      upper: cyclicVariableIndices(variables, heldSkills).has(index) ? 0 : 1,
+      integer: true,
+    })),
     ...coverageVariables.map(({ name }) => ({ name, cost: 1, lower: 0, upper: 1, integer: true })),
   ];
   const constraints: MilpConstraint[] = [];
@@ -211,7 +260,11 @@ function greedyFallback(
   const levels = new Map(gaps.map((gap) => [gap.skillId, gap.currentLevel]));
   const canPrereq = (item: RankedOpportunity) => item.opportunity.prerequisites.every((skill) => heldSkillLevel(heldSkills, skill) >= 1 || (levels.get(skill) ?? 0) >= 1);
   while (true) {
-    const candidate = ranked.filter((item) => item.eligible && !chosen.has(item.opportunity.opportunityId) && item.opportunity.costUsd <= budget && item.opportunity.durationHours <= hours && canPrereq(item)).map((item) => ({ item, contributions: gaps.flatMap((gap) => { const added = Math.max(0, Math.min(coveredSkillLevel(item.opportunity, gap.skillId) - (levels.get(gap.skillId) ?? 0), gap.requiredLevel - (levels.get(gap.skillId) ?? 0))); return added > 0 ? [{ skillId: gap.skillId, addedLevel: added }] : []; }) })).filter(({ contributions }) => contributions.length > 0).sort((a, b) => (b.contributions.reduce((n, c) => n + c.addedLevel, 0) - a.contributions.reduce((n, c) => n + c.addedLevel, 0)) || b.item.score - a.item.score || compareCodeUnits(a.item.opportunity.opportunityId, b.item.opportunity.opportunityId))[0];
+    const candidate = ranked
+      .filter((item) => item.eligible && !chosen.has(item.opportunity.opportunityId) && item.opportunity.costUsd <= budget && item.opportunity.durationHours <= hours && canPrereq(item))
+      .map((item) => ({ item, contributions: contributionsAtLevels(item, gaps, levels) }))
+      .filter(({ contributions }) => contributions.length > 0)
+      .sort((a, b) => (b.contributions.reduce((n, c) => n + c.addedLevel, 0) - a.contributions.reduce((n, c) => n + c.addedLevel, 0)) || b.item.score - a.item.score || compareCodeUnits(a.item.opportunity.opportunityId, b.item.opportunity.opportunityId))[0];
     if (!candidate) break;
     chosen.add(candidate.item.opportunity.opportunityId);
     budget -= candidate.item.opportunity.costUsd;
