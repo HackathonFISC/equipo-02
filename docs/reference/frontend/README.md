@@ -32,6 +32,8 @@ deterministic slot agenda), [ADR-0007](../../../.agents/adr/0007-web-styling-tai
 (Tailwind v4 + shadcn/ui). Domain vocabulary: [`CONTEXT.md`](../../../CONTEXT.md). Boundaries:
 ADR-0002, ADR-0003, ADR-0004, ADR-0005. Parent spec: `.agents/skills/platform/artifacts/to-spec/puente-laboral-quantumquirkxyz.md`.
 Machine-readable spec: `.agents/skills/platform/artifacts/to-spec/puente-laboral-web-frontend.json`.
+Tracker: spec issue #32; tickets #33–#51 (sub-issues with native blocked-by edges); wave plan in
+`.agents/skills/platform/artifacts/to-tickets/web-frontend/tickets.json`.
 
 ## Workflow position
 

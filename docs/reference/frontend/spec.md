@@ -276,4 +276,5 @@ Open questions OQ-1 … OQ-11 are tracked with options and blocked work in
 - SC-09: every goal G1–G10 has criteria; NG1 is enforced by AC-47/AC-50, NG2 by AC-59/AC-61,
   NG3 by AC-71/AC-72, NG4 by AC-44, NG5 by AC-76/AC-77, NG6 by AC-05.
 - SC-13: every criterion is ticket-ready.
-- Not published to the tracker yet (`to-spec` side effect `create-issue` needs approval).
+- Published 2026-10-16 as #32 (`spec`, `ready-for-agent`); `to-tickets` sliced it into sub-issues
+  #33–#51 in six waves (artifact: `.agents/skills/platform/artifacts/to-tickets/web-frontend/`).
