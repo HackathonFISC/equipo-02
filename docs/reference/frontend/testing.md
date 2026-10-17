@@ -4,11 +4,14 @@ Produced with the `frontend-testing` skill. Principle: test what the user experi
 highest seam available ([spec.md § Seams](spec.md#seams-and-testing-decisions)); keep the existing
 handler tests as the base of the pyramid.
 
-## Current setup (2026-10-16)
+## Current setup (2026-10-17)
 
-- `vitest.config.ts`: `environment: "node"`, includes `*.test.ts` only — no `.tsx`, no DOM.
-- Coverage includes `packages/*` and `apps/agent-runtime/src/application/**` — **not `apps/web`**.
-- `playwright.config.ts`: `testDir: ./apps/agent-runtime/e2e`, one web server (runtime) — no web e2e.
+- `vitest.config.ts` has node and jsdom projects; the jsdom project covers
+  `apps/web/tests/components/**/*.test.tsx` with Testing Library, MSW, and `vitest-axe` setup.
+- Coverage includes server-side `apps/web/lib/**/*.ts` under the documented thresholds; generated
+  `apps/web/components/ui/**` remains excluded.
+- `playwright.config.ts` runs the runtime project plus the web/device projects (`Pixel 7`, `iPhone
+  14`, `Desktop Chrome`, and `web`) from the top-level web-server configuration.
 
 ## Tiers
 
@@ -25,15 +28,12 @@ handler tests as the base of the pyramid.
 Storybook is **not** adopted for the hackathon timeline; component states are covered by
 component tests and visual snapshots instead.
 
-## Configuration changes
+## Configuration reference
 
-- Vitest: add a `projects` entry for `apps/web/tests/components/**/*.test.tsx` with
-  `environment: "jsdom"` and a setup file (Testing Library matchers, MSW server, `vitest-axe`).
-- Coverage: add `apps/web/lib/**/*.ts` and `apps/web/components/**/*.tsx` (excluding `components/ui/**`)
-  under the existing 80 % line threshold.
-- Playwright: add a `web` project with `testDir: ./apps/web/e2e`, a second `webServer`
-  (`npm run dev --workspace @puente/web` on a fixed port, no `OPENROUTER_API_KEY`), and device
-  projects `Pixel 7`, `iPhone 14`, `Desktop Chrome` (AC-54).
+- Vitest’s jsdom project, coverage globs, and setup file are defined in `vitest.config.ts` and
+  `apps/web/tests/components/setup.ts`.
+- Playwright’s web project uses `apps/web/e2e`, a fixed second server port without
+  `OPENROUTER_API_KEY`, and the device projects `Pixel 7`, `iPhone 14`, and `Desktop Chrome` (AC-54).
 
 ## What each acceptance criterion is tested by
 
