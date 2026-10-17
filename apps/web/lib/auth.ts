@@ -4,6 +4,7 @@ import { anonymous } from 'better-auth/plugins/anonymous';
 import { magicLink } from 'better-auth/plugins/magic-link';
 import { nextCookies } from 'better-auth/next-js';
 import { headers } from 'next/headers';
+import { preservedLinkedAuthFields } from './auth-linking';
 import type { AppSession } from './auth-types';
 
 let pool: Pool | undefined;
@@ -12,6 +13,10 @@ function getPool(): Pool {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not configured');
   pool ??= new Pool({ connectionString: process.env.DATABASE_URL });
   return pool;
+}
+
+function authDatabase(): Pool | undefined {
+  return process.env.DATABASE_URL ? getPool() : undefined;
 }
 
 async function preserveAnonymousUserId(data: {
@@ -51,10 +56,13 @@ async function mergeLinkedUserIntoAnonymousUser(
     name: string;
     image: string | null;
     emailVerified: boolean;
-  }>('select email, name, image, "emailVerified" from "user" where id = $1', [linkedId]);
+    role: unknown;
+    employerOrgId: unknown;
+  }>('select email, name, image, "emailVerified", role, "employerOrgId" from "user" where id = $1', [linkedId]);
 
   const linkedUser = linked.rows[0];
   if (!linkedUser) return;
+  const preserved = preservedLinkedAuthFields(linkedUser);
 
   await client.query('update "account" set "userId" = $1 where "userId" = $2', [anonymousId, linkedId]);
   await client.query('update "session" set "userId" = $1 where "userId" = $2', [anonymousId, linkedId]);
@@ -66,10 +74,19 @@ async function mergeLinkedUserIntoAnonymousUser(
           image = $4,
           "emailVerified" = $5,
           "isAnonymous" = false,
-          role = 'candidate',
+          role = $6,
+          "employerOrgId" = $7,
           "updatedAt" = now()
       where id = $1`,
-    [anonymousId, linkedUser.email, linkedUser.name, linkedUser.image, linkedUser.emailVerified],
+    [
+      anonymousId,
+      linkedUser.email,
+      linkedUser.name,
+      linkedUser.image,
+      linkedUser.emailVerified,
+      preserved.role,
+      preserved.employerOrgId,
+    ],
   );
 }
 
@@ -84,7 +101,7 @@ export const auth = betterAuth({
   appName: 'Puente Laboral Panama',
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
-  database: getPool(),
+  database: authDatabase(),
   socialProviders: googleProvider(),
   user: {
     additionalFields: {
