@@ -128,7 +128,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, context: Requ
       writeJson(res, 200, context.service.approveInterview(session, submissionId, body), context.secrets);
       return;
     }
-    writeJson(res, 200, context.service.decideInterview(session, submissionId, body), context.secrets);
+    writeJson(res, 200, await context.service.decideInterview(session, submissionId, body), context.secrets);
     return;
   }
 

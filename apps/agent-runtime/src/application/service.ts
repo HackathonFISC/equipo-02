@@ -263,7 +263,7 @@ export class ApplicationService {
     return view;
   }
 
-  decideInterview(session: unknown, submissionId: string, raw: unknown): SubmitView {
+  async decideInterview(session: unknown, submissionId: string, raw: unknown): Promise<SubmitView> {
     const actor = this.actor(session);
     this.requireRole(actor, "employer", "Only an employer can decide interview progression.");
     const submission = this.submissionById(submissionId);
@@ -278,8 +278,8 @@ export class ApplicationService {
     if (decision === "rejected") {
       submission.employerRejection = this.decision(actor, action.reason, []);
       submission.interview = "rejected";
-      this.audit(actor, "rejection", action);
       submission.history.push(this.historyEntry(actor, "rejection", action.reason));
+      await this.notify(actor, "rejection", action, "candidate");
     } else if (!submission.employerApproval) {
       throw new ApplicationError(
         "Employer approval is required before interview progression.",
@@ -288,8 +288,8 @@ export class ApplicationService {
       );
     } else {
       submission.interview = "approved";
-      this.audit(actor, "approval", action);
       submission.history.push(this.historyEntry(actor, "approval", action.reason));
+      await this.notify(actor, "approval", action, "candidate");
     }
     return this.submitView(submission, false);
   }
