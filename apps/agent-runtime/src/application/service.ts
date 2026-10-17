@@ -223,7 +223,7 @@ export class ApplicationService {
       throw new ApplicationError("Candidate approval is required before submission.", 422, "candidate_approval_required");
     }
     if (
-      counselorGateReasons(draft.input.match, draft.input.evidence).length > 0 &&
+      this.hasCounselorGate(draft) &&
       !this.approvalCovers(draft.counselorApproval, draft.selectedEvidenceIds)
     ) {
       throw new ApplicationError("Counselor approval is required before submission.", 422, "counselor_approval_required");
@@ -304,7 +304,9 @@ export class ApplicationService {
     let drafts: StoredDraft[];
     if (query.gate === "counselor" && query.pending === true) {
       this.requireRole(actor, "counselor", "Only a counselor can review gated drafts.");
-      drafts = [...this.drafts.values()].filter((draft) => this.hasCounselorGate(draft) && !draft.counselorApproval);
+      drafts = [...this.drafts.values()].filter(
+        (draft) => draft.status === "open" && this.hasCounselorGate(draft) && !draft.counselorApproval,
+      );
     } else {
       this.requireRole(actor, "candidate", "Only the candidate can list their drafts.");
       if (!query.candidateId || query.candidateId !== actor.id) {
@@ -510,8 +512,13 @@ export class ApplicationService {
     return { action, actorRole: actor.role, timestamp: this.clock(), reason };
   }
 
+  private counselorGate(draft: StoredDraft): GateReason[] {
+    const selected = draft.input.evidence.filter((item) => draft.selectedEvidenceIds.includes(item.id));
+    return counselorGateReasons(draft.input.match, selected);
+  }
+
   private hasCounselorGate(draft: StoredDraft): boolean {
-    return counselorGateReasons(draft.input.match, draft.input.evidence).length > 0;
+    return this.counselorGate(draft).length > 0;
   }
 
   private requireEmployerOrganization(actor: Actor, draft: StoredDraft): void {
@@ -542,7 +549,7 @@ export class ApplicationService {
       evidence: draft.input.evidence.filter((item) => draft.selectedEvidenceIds.includes(item.id)),
       status: draft.status,
       documents,
-      counselorGate: counselorGateReasons(draft.input.match, draft.input.evidence),
+      counselorGate: this.counselorGate(draft),
       candidateApproved: draft.candidateApproval !== undefined,
       counselorApproved: draft.counselorApproval !== undefined,
       history: draft.history.map(({ actorRole, timestamp, reason, action }) => ({ actorRole, timestamp, reason, action })),

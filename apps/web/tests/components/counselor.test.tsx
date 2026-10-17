@@ -54,6 +54,20 @@ describe('counselor queue', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('requests the pending counselor gate queue', async () => {
+    let requested = '';
+    server.use(
+      http.get('/api/applications/drafts', ({ request }) => {
+        requested = request.url;
+        return HttpResponse.json({ drafts: [] });
+      }),
+    );
+    wrap(<CounselorQueue />);
+    await screen.findByText('No hay postulaciones esperando tu revisión 🎉');
+    expect(new URL(requested).searchParams.get('gate')).toBe('counselor');
+    expect(new URL(requested).searchParams.get('pending')).toBe('true');
+  });
+
   it('shows the empty state', async () => {
     server.use(http.get('/api/applications/drafts', () => HttpResponse.json({ drafts: [] })));
     wrap(<CounselorQueue />);
@@ -90,5 +104,16 @@ describe('counselor review', () => {
     await waitFor(() => expect(body?.reason).toBe('corto motivo suficiente'));
     expect(body?.traceId).toBe('trace-1');
     expect(await screen.findByText('Rechazaste esta postulación.')).toBeInTheDocument();
+  });
+  it('derives the decided message from the draft state', async () => {
+    server.use(http.get('/api/applications/drafts/d1', () => HttpResponse.json(draft({ status: 'submitted' }))));
+    const submitted = wrap(<CounselorReview draftId="d1" />);
+    expect(await screen.findByText('Esta postulación ya fue enviada.')).toBeInTheDocument();
+    submitted.unmount();
+
+    server.use(http.get('/api/applications/drafts/d1', () => HttpResponse.json(draft({ counselorApproved: true }))));
+    const approved = wrap(<CounselorReview draftId="d1" />);
+    expect(await screen.findByText('Aprobaste esta postulación.')).toBeInTheDocument();
+    approved.unmount();
   });
 });
