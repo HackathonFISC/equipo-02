@@ -6,13 +6,16 @@ import { preferencesStore } from '../../../lib/preferences-store';
 import { savedSearchesStore } from '../../../lib/saved-searches-store';
 import type { VacancyVisitsStore } from '../../../lib/vacancy-visits-store';
 import { candidateIdFromRequest, unauthorized } from '../../../lib/candidate-session';
+import { getServerSession } from '../../../lib/auth';
+import { makeCandidateId } from '@puente/domain';
 import { markCandidateVacancyVisit, persistSavedSearch, readCandidateVacancyVisit, readSavedSearches } from '../../../lib/neon-repository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request): Promise<Response> {
-  const candidateId = candidateIdFromRequest(request);
+  const session = await getServerSession();
+  const candidateId = session?.user.id ? makeCandidateId(session.user.id) : candidateIdFromRequest(request);
   if (!candidateId) return unauthorized();
   const parsed = await readJsonBody(request);
   if (!parsed.ok) return parsed.response;
@@ -39,7 +42,8 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const candidateId = candidateIdFromRequest(request);
+  const session = await getServerSession();
+  const candidateId = session?.user.id ? makeCandidateId(session.user.id) : candidateIdFromRequest(request);
   if (!candidateId) return unauthorized();
   try {
     for (const search of await readSavedSearches(candidateId)) savedSearchesStore.save(search);
@@ -53,7 +57,8 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function PUT(request: Request): Promise<Response> {
-  const candidateId = candidateIdFromRequest(request);
+  const session = await getServerSession();
+  const candidateId = session?.user.id ? makeCandidateId(session.user.id) : candidateIdFromRequest(request);
   if (!candidateId) return unauthorized();
   try { await markCandidateVacancyVisit(candidateId); } catch { return NextResponse.json({ error: 'persistence_unavailable' }, { status: 503 }); }
   const { status, body } = handleMarkVacancyVisit(candidateId);
