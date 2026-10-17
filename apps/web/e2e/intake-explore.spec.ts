@@ -134,7 +134,12 @@ test('UC-05 guarda la búsqueda y la lista', async ({ page }) => {
 test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async ({ page }) => {
   let acknowledged = false;
   await page.addInitScript(() => localStorage.setItem('puente:candidateId', 'candidate-e2e'));
-  await page.route('**/api/searches?candidateId=candidate-e2e', async (route) => {
+  await page.addInitScript(() => localStorage.setItem('puente:preferences', JSON.stringify({ candidate_id: 'candidate-e2e' })));
+  await page.route('**/api/searches**', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ searchId: 'search-e2e' }) });
+      return;
+    }
     if (route.request().method() === 'PUT') {
       acknowledged = true;
       await route.fulfill({ status: 204, body: '' });
@@ -146,6 +151,10 @@ test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async
   await expect(page.getByRole('heading', { name: 'Nuevas desde tu última visita' })).toBeVisible(RESPUESTA);
   await expect(page.getByText('Nueva vacante')).toBeVisible(RESPUESTA);
   await expect.poll(() => acknowledged).toBe(true);
+  await page.getByRole('button', { name: 'Guardar esta búsqueda' }).click();
+  await page.getByLabel('Nombre de la búsqueda').fill('Búsqueda e2e');
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Búsqueda guardada');
 });
 
 test('UC-06 elimina los datos del candidato y vacía la lista', async ({ page }) => {
