@@ -21,6 +21,7 @@ export interface DraftInput {
   vacancyId: string;
   vacancyTitle: string;
   employerOrgId?: string;
+  candidateDisplayName?: string;
   evidence: EvidenceItem[];
   match: MatchDecision;
 }
@@ -36,6 +37,10 @@ export interface DraftView {
   candidateId: string;
   vacancyId: string;
   employerOrgId?: string;
+  traceId: string;
+  vacancyTitle: string;
+  candidateDisplayName?: string;
+  evidence: EvidenceItem[];
   status: "open" | "rejected" | "submitted";
   documents: ApplicationDocuments;
   counselorGate: GateReason[];
@@ -423,6 +428,7 @@ export class ApplicationService {
       vacancyId,
       vacancyTitle,
       employerOrgId,
+      candidateDisplayName: typeof body.candidateDisplayName === "string" && body.candidateDisplayName.trim() !== "" ? body.candidateDisplayName.trim() : undefined,
       evidence,
       match: body.match,
     };
@@ -532,6 +538,10 @@ export class ApplicationService {
       candidateId: draft.input.candidateId,
       vacancyId: draft.input.vacancyId,
       employerOrgId: draft.input.employerOrgId,
+      traceId: draft.input.traceId,
+      vacancyTitle: draft.input.vacancyTitle,
+      candidateDisplayName: draft.input.candidateDisplayName,
+      evidence: draft.input.evidence.filter((item) => draft.selectedEvidenceIds.includes(item.id)),
       status: draft.status,
       documents,
       counselorGate: counselorGateReasons(draft.input.match, draft.input.evidence),
