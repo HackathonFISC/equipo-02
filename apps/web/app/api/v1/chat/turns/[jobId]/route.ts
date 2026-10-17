@@ -24,5 +24,11 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 
   const { jobId } = await context.params;
   const { status, body } = await readChatTurnStatus(candidateId, jobId, { requestId });
-  return NextResponse.json(body, { status });
+  const responseBody = body as Record<string, unknown>;
+  const jobStatus = typeof responseBody.status === 'string' ? responseBody.status : undefined;
+  const headers = new Headers();
+  if (jobStatus === 'queued' || jobStatus === 'running') {
+    headers.set('Retry-After', '1');
+  }
+  return NextResponse.json({ ...responseBody, ...(jobStatus === 'queued' || jobStatus === 'running' ? { pollAfterMs: 1000 } : {}) }, { status, headers });
 }

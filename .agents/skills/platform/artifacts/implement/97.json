@@ -1,0 +1,18 @@
+{
+  "status": "partial",
+  "changes": [
+    "Migrated ChatScreen turn submission to the versioned asynchronous enqueue and status endpoints.",
+    "Added stable session-version submission, per-attempt idempotency/request IDs, queued/running polling, and retryable versus terminal error handling.",
+    "Added pollAfterMs and Retry-After metadata to asynchronous turn responses."
+  ],
+  "validation": {
+    "acceptanceCriteriaMet": false,
+    "commands": ["npm run typecheck --workspace @workbridge/web", "npm test -- --run apps/web/tests/chat-turns-route.test.ts apps/web/tests/components/chat-screen.test.tsx"],
+    "skipped": ["Full lint, full test suite, Playwright, gate-ci", "Existing ChatScreen tests still mock the synchronous endpoint and need migration to async submit/poll fixtures."],
+    "notes": "Typecheck passes. Targeted tests expose expected contract drift: legacy component fixtures still target /api/chat and the existing status-route assertion does not include the new pollAfterMs field."
+  },
+  "branch": "feat/issue-97-migrate-web-chat-async-turns",
+  "nextConsumer": "implement",
+  "riskRemaining": "Component and E2E coverage must be updated and passing before publication; the branch is not ready for PR publication.",
+  "qualityGateResults": { "gateIde": "pass", "gatePreCommit": "skipped", "gateCi": "fail" }
+}
