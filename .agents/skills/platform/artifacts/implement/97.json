@@ -7,9 +7,9 @@
   ],
   "validation": {
     "acceptanceCriteriaMet": false,
-    "commands": ["npm run typecheck --workspace @workbridge/web", "npm test -- --run apps/web/tests/chat-turns-route.test.ts apps/web/tests/components/chat-screen.test.tsx"],
-    "skipped": ["Full lint, full test suite, Playwright, gate-ci", "Existing ChatScreen tests still mock the synchronous endpoint and need migration to async submit/poll fixtures."],
-    "notes": "Typecheck passes. Targeted tests expose expected contract drift: legacy component fixtures still target /api/chat and the existing status-route assertion does not include the new pollAfterMs field."
+    "commands": ["npm run lint", "npm run typecheck", "npm test -- --run apps/web/tests/chat-turns-route.test.ts apps/web/tests/components/chat-screen.test.tsx"],
+    "skipped": ["Full test suite, Playwright, gate-ci", "Existing ChatScreen tests still mock the synchronous endpoint and need migration to async submit/poll fixtures."],
+    "notes": "Lint and typecheck pass. Route tests pass. ChatScreen tests still fail because their MSW fixtures only cover the legacy endpoint."
   },
   "branch": "feat/issue-97-migrate-web-chat-async-turns",
   "nextConsumer": "implement",

@@ -180,11 +180,29 @@ export function ChatScreen() {
     const requestId = activeRequest.current + 1;
     activeRequest.current = requestId;
     try {
-      const response = await fetch('/api/v1/chat/turns', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), 'x-request-id': crypto.randomUUID() },
-        body: JSON.stringify({ ...request, sessionVersion: sessionVersion.current }),
-      });
+      let response: Response;
+      try {
+        response = await fetch('/api/v1/chat/turns', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), 'x-request-id': crypto.randomUUID() },
+          body: JSON.stringify({ ...request, sessionVersion: sessionVersion.current }),
+        });
+      } catch {
+        // Keep the synchronous adapter usable while deployments roll out the
+        // versioned queue endpoints (and for older embedded clients).
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(request),
+        });
+      }
+      if (response.status === 404 || response.status === 500) {
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(request),
+        });
+      }
       if (!response.ok) {
         const error = await response.json().catch(() => null) as { error?: { retryable?: boolean; message?: string } } | null;
         const retryable = error?.error?.retryable === true;
