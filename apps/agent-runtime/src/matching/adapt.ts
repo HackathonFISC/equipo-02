@@ -15,6 +15,7 @@ import type {
   CandidateTransport,
   EvidenceSource,
   GeoPoint,
+  MatchDecision,
   SkillLevel,
   SolverCandidate,
   SolverVacancy,
