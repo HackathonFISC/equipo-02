@@ -211,6 +211,7 @@ export function ChatScreen() {
       }
       const handle = await response.json() as { jobId?: string; status?: string; statusUrl?: string; pollAfterMs?: number; result?: ChatTurn; reply?: string };
       let turn = handle.result;
+      let observedServerVersion = false;
       // The compatibility adapter returns a ChatTurn directly.
       if (handle.reply && !handle.jobId) {
         sessionVersion.current += 1;
@@ -225,14 +226,14 @@ export function ChatScreen() {
           if (statusBody.error?.retryable) throw new Error('chat_request_retryable');
           throw new Error(statusBody.error?.message ?? 'chat_request_failed');
         }
-        if (typeof statusBody.sessionVersion === 'number') sessionVersion.current = statusBody.sessionVersion;
-        else if (typeof statusBody.version === 'number') sessionVersion.current = statusBody.version;
+        if (typeof statusBody.sessionVersion === 'number') { sessionVersion.current = statusBody.sessionVersion; observedServerVersion = true; }
+        else if (typeof statusBody.version === 'number') { sessionVersion.current = statusBody.version; observedServerVersion = true; }
         if (statusBody.result) turn = statusBody.result;
         handle.status = statusBody.status;
         handle.pollAfterMs = statusBody.pollAfterMs ?? handle.pollAfterMs;
       }
       if (!turn) throw new Error('chat_request_failed');
-      if (typeof (handle as { sessionVersion?: number; version?: number }).sessionVersion !== 'number' && typeof (handle as { sessionVersion?: number; version?: number }).version !== 'number') sessionVersion.current += 1;
+      if (!observedServerVersion && typeof (handle as { sessionVersion?: number; version?: number }).sessionVersion !== 'number' && typeof (handle as { sessionVersion?: number; version?: number }).version !== 'number') sessionVersion.current += 1;
       const nextState = applyTurn(slotState, turn.slotUpdates, request.action);
       setSlotState(nextState);
       setPhase(turn.phase);
