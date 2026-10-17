@@ -3,9 +3,9 @@
   "pr": 54,
   "fixedPoint": "main",
   "branch": "feat/issue-33-adopt-tailwind-v4-shadcn-design-tokens",
-  "commitSha": "7c4d84e",
+  "commitSha": "0f63012",
   "completedItems": [
-    "Migrated the remaining IntakeForm and ExplorationDashboard controls to the generated Input, Select, Checkbox, and Label primitives while preserving controlled state and payload behavior.",
+    "Migrated the remaining IntakeForm and ExplorationDashboard controls and checkbox captions to the generated Input, Select, Checkbox, and Label primitives while preserving controlled state and payload behavior.",
     "Replaced undocumented translucent/composited status backgrounds with documented token pairs.",
     "Removed brightness-based hover color transformations and documented the neutral badge ink/line contrast pair."
   ],
