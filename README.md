@@ -76,8 +76,14 @@ Accredible, Credly y un mock transparente como respaldo.
 - **Traslados**: Google Maps cuando hay clave; si no, datos deterministas de demostración.
 - **Credenciales**: Certo, Accredible y Credly, con fallbacks documentados.
 
-> Pendiente antes de la entrega final: citar con fecha las fuentes oficiales panameñas que
-> sustentan el problema (desempleo juvenil, tiempos de traslado, oferta de cursos de INADEH).
+Fuentes externas que sustentan el problema: **pendientes de completar** (no se inventan cifras).
+
+| Dato | Fuente | Fecha de consulta | Uso |
+|---|---|---|---|
+| Desempleo juvenil | Pendiente: fuente oficial panameña | — | Justificación del problema |
+| Transporte y tiempos de traslado | Pendiente | — | Restricción de matching |
+| Cursos y cupos | Pendiente: INADEH u otra fuente verificable | — | Ruta de formación |
+| Vacantes | Catálogo y *fixtures* del repositorio (`packages/catalog`) | — | Demo y evals |
 
 ## Instalación y ejecución
 
@@ -131,8 +137,9 @@ Detalle, métricas, comandos y límites en **[docs/evals.md](docs/evals.md)**.
 
 ## Bitácora de IA
 
-Se usó IA a lo largo de todo el proyecto: Cursor (49 commits con coautoría), Claude (9
-commits y la sesión de refactorización visual y cierre), OpenCode, Codex y otros modelos, con
+Se usó IA a lo largo de todo el proyecto: Cursor (49 commits con coautoría en `main`), Claude (8
+commits con coautoría en `main`, 9 contando el de archivo de documentación de esta rama, y la
+sesión de refactorización visual y cierre), OpenCode, Codex y otros modelos, con
 revisión y decisiones del equipo. Qué se hizo con IA, con qué herramienta, qué no se puede
 determinar y qué incidentes hubo: **[docs/bitacora-ia.md](docs/bitacora-ia.md)**.
 
@@ -140,11 +147,20 @@ determinar y qué incidentes hubo: **[docs/bitacora-ia.md](docs/bitacora-ia.md)*
 
 Guion de **menos de 3 minutos** (intake, matching, ruta, postulación y aprobaciones humanas),
 preparación, plan B y checklist de entrega: **[docs/runbook-demo.md](docs/runbook-demo.md)**.
+Estado: es un guion; el video aún **no está grabado ni enlazado** y el ensayo cronometrado
+de punta a punta **no se ha hecho** (el tiempo del guion, 2:52, es un presupuesto).
+Enlace al video: _pendiente_.
 
 ## Estado y límites conocidos
 
 - La aplicación web no se ha ejecutado de punta a punta en un entorno limpio desde la
   refactorización visual; la verificación se apoya en tests y en lectura de código.
+- La web no pasa por el grafo de cinco agentes (`WorkflowRuntime`): llama a los agentes de
+  perfil y exploración, al servicio de matching y a la ruta de formación por separado, y el
+  auditor de sesgo contrafactual no corre en ese flujo. Detalle en
+  [docs/arquitectura.md](docs/arquitectura.md#7-limitaciones-conocidas).
+- Un borrador creado desde la interfaz no lleva la organización de la empresa, así que la
+  empresa podría no verlo; no se ha ensayado (ver el runbook, sección 6.3).
 - Borradores y envíos de postulación viven en memoria en `agent-runtime`; solo la
   idempotencia y el outbox usan SQL.
 - Hay pruebas y chequeos rojos en `main` que no son de la entrega: `chat-worker.test.ts`, errores de
@@ -157,8 +173,9 @@ preparación, plan B y checklist de entrega: **[docs/runbook-demo.md](docs/runbo
 
 ## Congelamiento
 
-El tag de git **`final-24h`** marca el último commit válido de la entrega; lo posterior no
-cuenta para la evaluación. Para comprobarlo:
+**Estado: el tag `final-24h` todavía no existe.** Se creará sobre el último commit válido de
+la entrega, después de los bloqueantes del issue #104, y su hash se anotará aquí. Mientras no
+esté creado, los comandos siguientes no devuelven nada. Para comprobarlo una vez creado:
 
 ```bash
 git tag -l final-24h

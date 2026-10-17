@@ -129,11 +129,12 @@ Validación local: `npm run verify`, `npm run gate:ci`, `npm run test:e2e` (ver 
 
 ### 4.3 Docker
 
-`Dockerfile`: `node:22-alpine`, copia `packages`, `apps` y configuración, ejecuta `npm ci`, expone el puerto 3000 y arranca `npx tsx apps/agent-runtime/src/application/main.ts`. El healthcheck consulta `GET /health`. La imagen contiene el runtime de postulaciones; **no** arranca `apps/web` ni el worker de chat.
+`Dockerfile` multietapa sobre `node:22-alpine`: una base común (`npm ci`) y dos destinos. El destino `runtime` (el último, el que construye `docker build .`) expone el puerto 3000, arranca `npx tsx apps/agent-runtime/src/application/main.ts` y tiene healthcheck sobre `GET /health`. El destino `web` ejecuta `next build` y arranca `next start` en el puerto 3001. El worker de chat reutiliza la imagen `runtime` con otro comando. `compose.yaml` levanta runtime, worker y web (más Certo, que exige clonar antes `apps/certo`) con `npm run local:up` / `npm run local:down`; no se ejecutó en esta entrega.
 
 ```bash
-docker build -t workbridge-application .
+docker build -t workbridge-application .          # destino runtime (el último)
 docker run --rm --env-file .env -p 3000:3000 workbridge-application
+docker build --target web -t workbridge-web .       # opcional: la web
 ```
 
 Sin `DATABASE_URL` ni `NEON_DATABASE_URL`, `GET /health` informa `databaseMode: "memory"` y la persistencia es temporal. Las credenciales se inyectan por entorno del proveedor, nunca dentro de la imagen.
@@ -157,7 +158,7 @@ Migraciones SQL numeradas en `migrations/`:
 
 ### 4.6 Variables de entorno (solo nombres)
 
-Se copian de `.env.example`, `apps/agent-runtime/.env.example` y `apps/web/.env.example`. Nunca se versionan valores reales.
+La mayoría figura en `.env.example`, `apps/agent-runtime/.env.example` y `apps/web/.env.example`; `BETTER_AUTH_SESSION_SECRET`, `CHAT_METRICS_TOKEN` y `WORKBRIDGE_PERSISTENCE` no están en ninguna plantilla y se leen directamente del código. Nunca se versionan valores reales.
 
 | Variable | Propósito | De dónde sale | Si falta |
 |---|---|---|---|
@@ -174,7 +175,7 @@ Se copian de `.env.example`, `apps/agent-runtime/.env.example` y `apps/web/.env.
 | `CERTO_BASE_URL`, `CERTO_API_TOKEN` | Verificación de credenciales con Certo | Instancia de Certo (local o desplegada; fuera de localhost exige https) | Fallback a Accredible, Credly o mock transparente |
 | `ACCREDIBLE_API_TOKEN`, `CREDLY_API_TOKEN` | Proveedores de respaldo (el `.env` raíz también lista `ACCREDIBLE_API_KEY`) | Cada proveedor | Se omite el proveedor |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Ingesta de trazas | Proyecto de Langfuse | Sin las dos claves no hay llamada de red; un fallo de Langfuse no rompe la ejecución |
-| `CHAT_METRICS_TOKEN` | Protege `/api/health/chat/metrics` | Se genera localmente | Ver nota en 5 |
+| `CHAT_METRICS_TOKEN` | Protege `/api/health/chat/metrics` | Se genera localmente | El endpoint responde 401 (ver sección 5) |
 | `WORKBRIDGE_PERSISTENCE` | `memory` fuerza almacenes en memoria | Valor fijo | Usa Neon |
 | `PORT` | Puerto del runtime (3000 por defecto) | Entorno | 3000 |
 | `AUTH_SEED_ENV`, `SEED_COUNSELOR_EMAIL`, `SEED_EMPLOYER_EMAIL` | Parámetros de `seed:roles` | Entorno | Valores `example.test` de desarrollo |
@@ -191,7 +192,7 @@ Degradación elegante, en resumen: sin OpenRouter hay extractor heurístico; sin
 
 - **Salud del runtime:** `GET /health` (puerto 3000) informa `databaseMode` (`memory`, `primary` o `neon-backup`) y `persistence`. Es la comprobación posterior al despliegue.
 - **Salud de base en la web:** `GET /api/health/db` ejecuta una consulta a Neon; responde `ok` o `503` con la causa del error de conexión.
-- **Salud del chat:** `GET /api/health/chat` y `GET /api/health/chat/metrics` (métricas y alertas de la cola; el segundo se protege con `CHAT_METRICS_TOKEN`).
+- **Salud del chat:** `GET /api/health/chat/metrics` (métricas y alertas de la cola). Exige `Authorization: Bearer <CHAT_METRICS_TOKEN>`; si la variable no está definida responde siempre 401.
 - **Registro de auditoría:** el runtime guarda eventos por `traceId`; `GET /audit?traceId=...` (con sesión autorizada) los devuelve. Sirve para revisar quién hizo qué antes de aceptar un borrador.
 - **Langfuse:** al terminar un workflow, si hay `LANGFUSE_PUBLIC_KEY` y `LANGFUSE_SECRET_KEY`, se envía un lote a `LANGFUSE_BASE_URL/api/public/ingestion` (por defecto `https://cloud.langfuse.com`). Es de mejor esfuerzo (#116). Cómo leer una traza: abrir el proyecto en Langfuse, buscar por `trace_id`; cada agente es un tramo con herramienta, modelo y costo.
 - **Almacén DQL:** los pasos que fallan o quedan bloqueados se registran con un estado y un historial de transiciones válidas (`apps/agent-runtime/src/workflow/observability.ts`: `DqlState`, `DqlRecord`), de modo que un caso no se pierde en silencio y puede reintentarse.
@@ -201,7 +202,7 @@ Degradación elegante, en resumen: sin OpenRouter hay extractor heurístico; sin
 ## 6. Seguridad
 
 - **Manejo de secretos.** Los `.env.example` solo contienen nombres; los valores reales viven en el entorno del proveedor. El runtime rechaza claves, tokens o cadenas de conexión dentro de borradores o razones de auditoría (`apps/agent-runtime/src/application/secrets.ts`). Los guardarraíles filtran PII en entradas, salidas y resultados de herramientas.
-- **Incidente de `apps/web/.env.local`.** El archivo quedó versionado en `main` pese a `.gitignore` y contenía credenciales reales en el historial (commits `b433e48`, `62343b1`, `7acb1e3`). Remediación:
+- **Incidente de `apps/web/.env.local`.** El archivo quedó versionado en `main` pese a `.gitignore` y contenía credenciales reales en el historial (añadido en `1ae8200`; modificado en `7a3d268`, `b433e48` y `62343b1`). Remediación:
   - Hecho: PR #106 (fusionado) dejó de versionar el archivo y añadió `scripts/purge-leaked-env.sh`.
   - **Pendiente, a cargo de los dueños de las cuentas:** (1) **rotar todas las credenciales** que estuvieron expuestas (base de datos Neon, OpenRouter, Google Maps y cualquier otra presente); la rotación es lo urgente porque purgar el historial no invalida secretos ya copiados; (2) **purgar el historial** con `scripts/purge-leaked-env.sh` (por defecto es un ensayo sin cambios; `--apply` reescribe un clon espejo; `--apply --push` fuerza el push y debe ejecutarlo un propietario del repositorio, después de rotar). Hasta que ambas cosas se hagan, el historial público sigue conteniendo secretos que deben considerarse comprometidos.
 - **Autenticación y roles.** Better Auth con Postgres (correo con enlace mágico, Google opcional, sesión anónima). Roles `candidate`, `counselor`, `employer`; orientador y empresa se asignan por semilla (`seed:roles`), no por registro libre. La empresa solo accede a datos de su organización ([ADR-0008](../.agents/adr/0008-role-organization-authorization.md)). El BFF firma la sesión que verifica el runtime; las sesiones de chat se ligan al usuario autenticado.
@@ -216,8 +217,8 @@ Limitaciones conocidas:
 - Credenciales filtradas: rotación y purga de historial **pendientes** (sección 6).
 - Certo no está integrado contra un despliegue real; la verificación recae en proveedores de respaldo o en el mock declarado ([ADR-0003](../.agents/adr/0003-verification-and-human-approval.md), "integración técnica pendiente").
 - Notificaciones solo en bandeja interna (`in_app`); sin correo, SMS ni WhatsApp.
-- El `Dockerfile` y `vercel.json` cubren el runtime; `apps/web` y el worker de chat se despliegan por separado y no hay receta única reproducida de extremo a extremo.
+- `vercel.json` cubre solo el runtime de postulaciones. El `Dockerfile` (destinos `runtime` y `web`) y `compose.yaml` cubren runtime, worker y web, pero ninguna receta de despliegue se reprodujo de extremo a extremo en esta entrega.
 - El runtime en modo memoria pierde datos al reiniciar; los puertos de Playwright y datos de vacantes son de demostración.
 - Cobertura de evaluación acotada al conjunto de casos etiquetados ([evals.md](evals.md)).
 
-Trabajo futuro: arreglar las compuertas en rojo y activarlas en CI, completar rotación y purga, integrar Certo en producción, añadir canales de notificación reales, unificar el despliegue de web, runtime y worker (por ejemplo con `docker compose`), y ampliar el catálogo de vacantes y centros de formación.
+Trabajo futuro: arreglar las compuertas en rojo y activarlas en CI, completar rotación y purga, integrar Certo en producción, añadir canales de notificación reales, reproducir y validar `compose.yaml` y un despliegue único de web, runtime y worker, y ampliar el catálogo de vacantes y centros de formación.

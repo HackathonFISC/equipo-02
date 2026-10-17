@@ -4,8 +4,8 @@ Reto 3 · Empleabilidad · Hackathon FISC AI Agents 2026 (evaluación final en C
 
 Esta carpeta contiene **solo** los documentos de la entrega. La documentación anterior del
 repositorio (método quirk Skills, gobernanza de issues, guías, tutoriales, referencia de
-frontend, galería de previews y la primera versión de la entrega) se conserva sin cambios en
-[`old/`](old/README.md).
+frontend, galería de previews y la primera versión de la entrega) se conserva en
+[`old/`](old/README.md) (los movimientos son renombres; solo cambian un banner de archivo en `old/README.md` y las rutas de los scripts de `old/design/previews`).
 
 ## Entregables oficiales
 
@@ -17,7 +17,7 @@ frontend, galería de previews y la primera versión de la entrega) se conserva 
 | Bitácora de IA | [`bitacora-ia.md`](bitacora-ia.md) | Qué se hizo con IA, con qué herramienta y qué se modificó a mano |
 | Documento de metodología | [`metodologia.md`](metodologia.md) | Despliegue, funcionamiento y arquitectura |
 | Video demo (≤ 3 min) | [`runbook-demo.md`](runbook-demo.md) | Guion minuto a minuto y checklist del congelamiento |
-| Tag de congelamiento | `final-24h` | Último commit válido (ver README) |
+| Tag de congelamiento | `final-24h` | Pendiente: aún no creado; marcará el último commit válido (ver README) |
 
 ## Lectura recomendada (10 minutos)
 
