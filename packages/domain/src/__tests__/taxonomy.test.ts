@@ -6,6 +6,7 @@ import {
 } from "@puente/domain";
 import seedLabels from "../taxonomy/fixtures/panama-seed-labels.json";
 import escoResolution from "../taxonomy/fixtures/esco-v1.2.1-panama-resolution.json";
+import escoResponses from "../taxonomy/fixtures/esco-v1.2.1-captured-responses.json";
 
 describe("normalizeText", () => {
   it("lowercases, strips accents, and collapses punctuation", () => {
@@ -64,6 +65,8 @@ describe("ESCO taxonomy contract", () => {
     expect(escoResolution.version).toBe(PANAMA_SKILL_TAXONOMY.escoVersion);
     expect(escoResolution.concepts).toHaveLength(PANAMA_SKILL_TAXONOMY.skills.length);
     expect(escoResolution.concepts.every((concept) => concept.status === "released")).toBe(true);
+    expect(escoResponses.version).toBe(PANAMA_SKILL_TAXONOMY.escoVersion);
+    expect(escoResponses.concepts).toHaveLength(PANAMA_SKILL_TAXONOMY.skills.length);
   });
 
   it("gives every seed skill a verified ESCO URI or an explicit unmapped reason", () => {
@@ -74,6 +77,7 @@ describe("ESCO taxonomy contract", () => {
         expect(skill.escoUri, `${skill.id} has an invalid ESCO URI`).toMatch(ESCO_SKILL_URI);
         expect(skill.escoLabel.trim(), `${skill.id} has no ESCO label`).not.toBe("");
         const resolved = escoResolution.concepts.find((concept) => concept.id === skill.id);
+        const captured = escoResponses.concepts.find((concept) => concept.id === skill.id);
         expect(resolved, `${skill.id} is missing from the pinned ESCO resolution`).toMatchObject({
           uri: skill.escoUri,
           label: skill.escoLabel,
@@ -83,6 +87,15 @@ describe("ESCO taxonomy contract", () => {
         expect(resolved?.sourceUrl, `${skill.id} has no replayable ESCO source`).toContain(
           `uri=${encodeURIComponent(skill.escoUri)}`,
         );
+        expect(captured, `${skill.id} is missing its captured ESCO response`).toMatchObject({
+          sourceUrl: resolved?.sourceUrl,
+          selectedVersion: PANAMA_SKILL_TAXONOMY.escoVersion,
+          response: {
+            uri: skill.escoUri,
+            preferredLabel: { en: skill.escoLabel },
+            status: "released",
+          },
+        });
       }
     }
   });
