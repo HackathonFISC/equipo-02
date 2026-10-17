@@ -330,6 +330,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
     async get(jobId) {
       const result = await query('select * from chat_jobs where job_id = $1', [jobId]);
       const row = result.rows[0];
+      await refreshMetrics();
       return row ? mapRow(row) : undefined;
     },
 
@@ -406,6 +407,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
 
     async deleteByCandidate(candidateId) {
       await query('delete from chat_jobs where candidate_id = $1', [candidateId]);
+      await refreshMetrics();
     },
   };
 }

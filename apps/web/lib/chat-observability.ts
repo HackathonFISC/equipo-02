@@ -69,7 +69,9 @@ export function evaluateChatAlerts(now = Date.now()): string[] {
   const windowStart = now - CHAT_ALERT_RULES.workerErrorRate.forSeconds * 1000;
   while (attemptsAt[0] !== undefined && attemptsAt[0] < windowStart) attemptsAt.shift();
   while (errorsAt[0] !== undefined && errorsAt[0] < windowStart) errorsAt.shift();
-  if (attemptsAt.length === 0 || errorsAt.length / attemptsAt.length <= CHAT_ALERT_RULES.workerErrorRate.threshold) errorRateAboveSince = undefined;
+  const currentErrorRate = attemptsAt.length === 0 ? 0 : errorsAt.length / attemptsAt.length;
+  if (currentErrorRate > CHAT_ALERT_RULES.workerErrorRate.threshold) errorRateAboveSince ??= now;
+  else errorRateAboveSince = undefined;
   if (oldestAgeSince !== undefined && now - oldestAgeSince >= CHAT_ALERT_RULES.oldestJobAge.forSeconds * 1000) alerts.push('chat_queue_oldest_job_age');
   if (errorRateAboveSince !== undefined && now - errorRateAboveSince >= CHAT_ALERT_RULES.workerErrorRate.forSeconds * 1000) alerts.push('chat_worker_error_rate');
   return alerts;
