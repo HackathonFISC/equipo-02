@@ -4,9 +4,103 @@ import {
   matchSkill,
   normalizeText,
 } from "@puente/domain";
-import seedLabels from "../taxonomy/fixtures/panama-seed-labels.json";
 import escoResolution from "../taxonomy/fixtures/esco-v1.2.1-panama-resolution.json";
 import escoResponses from "../taxonomy/fixtures/esco-v1.2.1-captured-responses.json";
+
+const ORIGINAL_SEED_LABELS = {
+  "PA-IT-0001": {
+    "labelEs": "Soporte técnico",
+    "labelEn": "Technical support"
+  },
+  "PA-IT-0002": {
+    "labelEs": "Mantenimiento de equipos de cómputo",
+    "labelEn": "Computer hardware maintenance"
+  },
+  "PA-IT-0003": {
+    "labelEs": "Redes y conectividad básica",
+    "labelEn": "Basic networking and connectivity"
+  },
+  "PA-IT-0004": {
+    "labelEs": "Sistemas operativos Windows",
+    "labelEn": "Windows operating systems"
+  },
+  "PA-OFF-0001": {
+    "labelEs": "Paquete de oficina",
+    "labelEn": "Office productivity suite"
+  },
+  "PA-OFF-0002": {
+    "labelEs": "Hoja de cálculo Excel",
+    "labelEn": "Spreadsheet software"
+  },
+  "PA-OFF-0003": {
+    "labelEs": "Digitación de datos",
+    "labelEn": "Data entry"
+  },
+  "PA-OFF-0004": {
+    "labelEs": "Gestión de agenda y correspondencia",
+    "labelEn": "Scheduling and correspondence management"
+  },
+  "PA-CS-0001": {
+    "labelEs": "Atención al cliente",
+    "labelEn": "Customer service"
+  },
+  "PA-CS-0002": {
+    "labelEs": "Manejo de caja",
+    "labelEn": "Cash handling"
+  },
+  "PA-CS-0003": {
+    "labelEs": "Ventas y cierre de ventas",
+    "labelEn": "Sales and closing"
+  },
+  "PA-CS-0004": {
+    "labelEs": "Gestión de relación con clientes (CRM)",
+    "labelEn": "Customer relationship management"
+  },
+  "PA-CS-0005": {
+    "labelEs": "Telemercadeo y centro de llamadas",
+    "labelEn": "Telemarketing and call center"
+  },
+  "PA-CS-0006": {
+    "labelEs": "Inventario y control de existencias",
+    "labelEn": "Inventory control"
+  },
+  "PA-CS-0007": {
+    "labelEs": "Punto de venta (POS)",
+    "labelEn": "Point of sale operation"
+  },
+  "PA-SOFT-0001": {
+    "labelEs": "Comunicación escrita",
+    "labelEn": "Written communication"
+  },
+  "PA-SOFT-0002": {
+    "labelEs": "Comunicación oral",
+    "labelEn": "Verbal communication"
+  },
+  "PA-SOFT-0003": {
+    "labelEs": "Trabajo en equipo",
+    "labelEn": "Teamwork"
+  },
+  "PA-SOFT-0004": {
+    "labelEs": "Resolución de problemas",
+    "labelEn": "Problem solving"
+  },
+  "PA-SOFT-0005": {
+    "labelEs": "Gestión del tiempo",
+    "labelEn": "Time management"
+  },
+  "PA-SOFT-0006": {
+    "labelEs": "Atención al detalle",
+    "labelEn": "Attention to detail"
+  },
+  "PA-LANG-0001": {
+    "labelEs": "Idioma español",
+    "labelEn": "Spanish language"
+  },
+  "PA-LANG-0002": {
+    "labelEs": "Idioma inglés",
+    "labelEn": "English language"
+  }
+} as const;
 
 describe("normalizeText", () => {
   it("lowercases, strips accents, and collapses punctuation", () => {
@@ -109,8 +203,8 @@ describe("ESCO taxonomy contract", () => {
 
   it("preserves the localized labels for every seed skill", () => {
     for (const skill of PANAMA_SKILL_TAXONOMY.skills) {
-      expect(skill.labelEs, `${skill.id} Spanish label changed`).toBe(seedLabels[skill.id as keyof typeof seedLabels].labelEs);
-      expect(skill.labelEn, `${skill.id} English label changed`).toBe(seedLabels[skill.id as keyof typeof seedLabels].labelEn);
+      expect(skill.labelEs, `${skill.id} Spanish label changed`).toBe(ORIGINAL_SEED_LABELS[skill.id as keyof typeof ORIGINAL_SEED_LABELS].labelEs);
+      expect(skill.labelEn, `${skill.id} English label changed`).toBe(ORIGINAL_SEED_LABELS[skill.id as keyof typeof ORIGINAL_SEED_LABELS].labelEn);
     }
   });
 
