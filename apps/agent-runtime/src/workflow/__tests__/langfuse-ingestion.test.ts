@@ -50,4 +50,23 @@ describe("Langfuse ingestion from environment config", () => {
       "Content-Type": "application/json",
     });
   });
+
+  it("makes no network call and still succeeds when the keys are unset", async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      calls.push(String(input));
+      return new Response("ok", { status: 200 });
+    };
+    const engine = createWorkflowRuntime({
+      clock: () => CLOCK,
+      complete: async () => ({ text: "Plan de practica en caja" }),
+      langfuseEnv: {},
+      fetchImpl,
+    });
+
+    const result = await engine.run(request());
+
+    expect(result.status).toBe("success");
+    expect(calls).toEqual([]);
+  });
 });
