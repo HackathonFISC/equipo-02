@@ -16,6 +16,7 @@ export async function GET(request: Request): Promise<Response> {
   if (process.env.WORKBRIDGE_PERSISTENCE !== 'memory') {
     try {
       const query = createNeonChatJobQuery();
+      await query("update chat_queue_metrics set oldest_alert_since = case when (select coalesce(extract(epoch from (now() - min(created_at))), 0) from chat_jobs where status = 'queued') > 60 then coalesce(oldest_alert_since, now()) else null end, updated_at = now() where metric_key = 'chat'", []);
       const [queue, totals] = await Promise.all([
         query("select count(*)::int as depth, coalesce(extract(epoch from (now() - min(created_at))), 0)::int as oldest from chat_jobs where status = 'queued'", []),
         query("select attempts, worker_errors, dead_letters, session_conflicts, provider_timeouts, duration_seconds_total, duration_samples, oldest_alert_since, error_alert_since from chat_queue_metrics where metric_key = 'chat'", []),

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
-import { CHAT_QUEUE_LIMIT, observeChatQueue } from './chat-observability';
+import { CHAT_QUEUE_LIMIT, observeChatJob, observeChatQueue } from './chat-observability';
 
 /** Number of execution attempts (including the first) before a transient failure is terminal. */
 export const DEFAULT_MAX_ATTEMPTS = 3;
@@ -85,7 +85,7 @@ export interface ChatJobStore {
   succeed(jobId: string, result: unknown, leaseOwner?: string, durationSeconds?: number): Promise<void>;
   fail(jobId: string, error: ChatJobError, leaseOwner?: string, durationSeconds?: number): Promise<void>;
   /** Release a lease without completing, so a transient failure can be retried. */
-  release(jobId: string, delayMs?: number, durationSeconds?: number): Promise<void>;
+  release(jobId: string, delayMs?: number, durationSeconds?: number, errorCode?: string): Promise<void>;
   deleteByCandidate(candidateId: string): Promise<void>;
 }
 
@@ -197,7 +197,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       job.updatedAt = job.finishedAt;
     },
 
-    async release(jobId, _delayMs = 0, _durationSeconds) {
+    async release(jobId, _delayMs = 0, durationSeconds) {
       const job = jobs.get(jobId);
       if (!job) return;
       job.status = 'queued';
@@ -207,6 +207,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       delete job.leaseOwner;
       delete job.leaseExpiresAt;
       job.updatedAt = new Date().toISOString();
+      if (durationSeconds !== undefined) observeChatJob('duration', durationSeconds);
     },
 
     async deleteByCandidate(candidateId) {
@@ -398,7 +399,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
       await refreshMetrics();
     },
 
-    async release(jobId, delayMs = 0, durationSeconds) {
+    async release(jobId, delayMs = 0, durationSeconds, errorCode) {
       await query(
         `update chat_jobs
          set status = 'queued', next_attempt_at = case when $2::int > 0 then now() + ($2::text || ' milliseconds')::interval else null end,
@@ -406,7 +407,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1`,
         [jobId, delayMs],
       );
-      if (durationSeconds !== undefined) await query("update chat_queue_metrics set duration_seconds_total = duration_seconds_total + $1, duration_samples = duration_samples + 1, updated_at = now() where metric_key = 'chat'", [durationSeconds]);
+      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 = 'chat_execution_retryable' then 1 else 0 end, provider_timeouts = provider_timeouts + case when $2 = 'chat_execution_retryable' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, errorCode ?? null]);
       await refreshMetrics();
     },
 
