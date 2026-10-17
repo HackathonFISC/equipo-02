@@ -12,7 +12,7 @@
     "skipped": [],
     "notes": "npm run verify passed with 504 tests. gate:ci passed with 94.63% line coverage."
   },
-  "commitSha": "1390eb2",
+  "commitSha": "1041cdd",
   "branch": "issue/35-add-the-typed-api-client-and-tanstack-qu",
   "nextConsumer": "publish-open-pr",
   "qualityGateResults": {
