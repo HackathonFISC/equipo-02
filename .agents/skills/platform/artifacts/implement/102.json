@@ -6,7 +6,7 @@
   ],
   "validation": {
     "acceptanceCriteriaMet": true,
-    "commands": ["git diff --check", "node -e JSON.parse(.agents/skills/platform/artifacts/implement/102.json)"],
+    "commands": ["git diff --check", "node -e \"JSON.parse(require('fs').readFileSync('.agents/skills/platform/artifacts/implement/102.json', 'utf8'))\""],
     "skipped": ["Full test suite: documentation-only change; no production or test code changed."],
     "notes": "Each area names AI assistance and manual decisions, and links to a commit or implementation artifact."
   },

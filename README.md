@@ -98,8 +98,10 @@ la matriz de confusión: `tp=3`, `tn=12`, `fp=0`, `fn=0`, precisión `1`, recall
 La única herramienta generativa usada para este registro y para la asistencia de
 implementación fue **OpenCode (GPT-5.6 Luna)**. OpenCode se usó para explorar el
 repositorio, localizar fixtures y aserciones, proponer documentación y revisar
-la consistencia de las referencias. Las decisiones de producto, contratos,
-revisión de cambios y escritura final fueron del equipo.
+la consistencia de las referencias. Esta asistencia y la revisión final de la
+trazabilidad quedan registradas en `.agents/skills/platform/artifacts/implement/102.md`
+y en el commit `6d48081`. Las decisiones de producto, contratos, revisión de
+cambios y escritura final fueron del equipo.
 
 ### Asistencia por área
 
@@ -109,7 +111,7 @@ revisión de cambios y escritura final fueron del equipo.
 | Matching | Explorar fixtures y revisar la documentación de resultados. | Escoger dimensiones, pesos, restricciones duras, estados de aptitud y fixtures deterministas. | `73e232a` (seam del solver), `cf35082` (decisiones para borradores), `.agents/skills/platform/artifacts/implement/2.md` |
 | Verificación de credenciales | Revisar la matriz de casos y ubicar sus aserciones. | Definir evidencia declarada, binding del holder, estados y fallback Certo → Accredible → Credly → mock. | `8eea3e0`, `README.md` tabla Evals (casos y tests), `.agents/skills/platform/artifacts/implement/56.md` |
 | Web | Proponer la organización del registro y comprobar referencias de rutas y handlers. | Conectar rutas con servicios, validar entradas, aplicar autorización y decidir códigos/respuestas de error. | `493129a` (integración web), `7acb1e3` (ruta de intake), `.agents/skills/platform/artifacts/implement/32.md` |
-| Docs | Localizar documentación existente y revisar enlaces y commits citados. | Redactar y mantener este registro, la tabla de evaluaciones y el diagrama de arquitectura. | `bb86ef4`, `.agents/skills/platform/artifacts/implement/101.md` |
+| Docs | Localizar documentación existente y revisar enlaces y commits citados. | Redactar y mantener este registro, la tabla de evaluaciones y el diagrama de arquitectura. | `6d48081`, `.agents/skills/platform/artifacts/implement/102.md`, `bb86ef4`, `.agents/skills/platform/artifacts/implement/101.md` |
 
 La tabla y este registro documentan resultados ya comprobados por la suite; este
 ticket solo añade trazabilidad documental y no añade casos de prueba ni cambia
