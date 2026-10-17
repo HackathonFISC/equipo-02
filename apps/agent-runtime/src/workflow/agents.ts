@@ -298,6 +298,24 @@ export async function runAgent(
       status: agent === "training" ? "success" : carrier.status,
     };
   } catch (error) {
+    if (agent === "market_and_matching" && services.matching && services.matchingInput) {
+      const message = error instanceof Error ? error.message : String(error);
+      move(services, dqlId, "failed", message);
+      move(services, dqlId, "dead_letter", message);
+      audit(services, carrier, agent, "matching_dead_letter", {
+        tool,
+        constraint: "matching_failure",
+        evidence: message,
+      });
+      const closed = services.traces.endSpan(span.id, {
+        endTime: services.clock(),
+        level: "ERROR",
+        output: { message },
+      });
+      services.emit?.({ event: "trace", data: closed });
+      publish(services, carrier, agent, "event", { status: "dead_letter", message });
+      return { ...carrier, halted: true, status: "dead_letter" };
+    }
     if (error instanceof ModelChainExhaustedError || error instanceof BudgetExceededError) {
       const message = error.message;
       const attempted = error instanceof ModelChainExhaustedError ? error.attempted : [];
