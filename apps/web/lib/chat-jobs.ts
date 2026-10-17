@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
+import { CHAT_QUEUE_LIMIT, observeChatQueue } from './chat-observability';
 
 /** Number of execution attempts (including the first) before a transient failure is terminal. */
 export const DEFAULT_MAX_ATTEMPTS = 3;
@@ -105,6 +106,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
         const existing = jobs.get(existingId);
         if (existing) return { job: clone(existing), created: false };
       }
+      if (input.enforceAdmission && [...jobs.values()].filter((candidate) => candidate.status === 'queued' || candidate.status === 'running').length >= CHAT_QUEUE_LIMIT) throw new ChatJobBackpressureError();
       if (input.enforceAdmission && [...jobs.values()].some((candidate) => candidate.candidateId === input.candidateId && (candidate.status === 'queued' || candidate.status === 'running'))) {
         throw new ChatJobBackpressureError();
       }
@@ -124,6 +126,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
         updatedAt: now,
       };
       jobs.set(job.jobId, job);
+      observeChatQueue({ queueDepth: [...jobs.values()].filter((candidate) => candidate.status === 'queued' || candidate.status === 'running').length });
       admissionOrder.set(job.jobId, nextAdmissionOrder++);
       idempotency.set(key(job.candidateId, job.idempotencyKey), job.jobId);
       return { job: clone(job), created: true };
@@ -263,6 +266,10 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
         `select 1 from chat_jobs where candidate_id = $1 and status in ('queued', 'running') limit 1`,
         [input.candidateId],
       ) : { rows: [] };
+      if (input.enforceAdmission && !active.rows[0]) {
+        const total = await query("select count(*)::int as count from chat_jobs where status in ('queued', 'running')", []);
+        if (Number(total.rows[0]?.count ?? 0) >= CHAT_QUEUE_LIMIT) throw new ChatJobBackpressureError();
+      }
       if (active.rows[0]) {
         const existing = await query(
           'select 1 from chat_jobs where candidate_id = $1 and idempotency_key = $2',

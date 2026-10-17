@@ -4,6 +4,7 @@ import { handleChatTurn, type AsyncChatStore } from './chat-handler';
 import { chatSessionStore } from './chat-store';
 import type { CandidateContext } from './chat/prompt';
 import { getChatJobStore, type ChatJob, type ChatJobError, type ChatJobStore } from './chat-jobs';
+import { candidateHash, observeChatJob } from './chat-observability';
 
 /** A claimed job is reclaimable by another worker once this lease elapses. */
 export const DEFAULT_LEASE_MS = 30_000;
@@ -83,6 +84,9 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
 
   const job = await jobs.claimNext({ leaseOwner, leaseMs: deps.leaseMs ?? DEFAULT_LEASE_MS, now: now() });
   if (!job) return { outcome: 'idle' };
+  const startedAt = now();
+  observeChatJob('attempt');
+  const safeLog = (entry: Record<string, unknown>) => log({ requestId: job.requestId, traceId: job.traceId, jobId: job.jobId, candidateHash: candidateHash(job.candidateId), ...entry });
 
   // Ordered per candidate by session version: a genuinely stale action is
   // terminal, while a future version waits for its earlier turn.
@@ -103,7 +107,8 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       message: 'The chat session changed before this turn was applied.',
       retryable: false,
     }, job.leaseOwner);
-    log({ event: 'chat_job_failed', jobId: job.jobId, code: 'session_version_conflict' });
+    observeChatJob('session_conflict');
+    safeLog({ event: 'chat_job_failed', code: 'session_version_conflict' });
     return { outcome: 'failed', jobId: job.jobId };
   }
   if (currentVersion < job.sessionVersion) {
@@ -149,12 +154,13 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       try {
         await jobs.release(job.jobId);
       } catch {
-        log({ event: 'chat_job_acknowledgement_unavailable', jobId: job.jobId });
+      safeLog({ event: 'chat_job_acknowledgement_unavailable' });
       }
-      log({ event: 'chat_job_acknowledgement_retry', jobId: job.jobId });
+      safeLog({ event: 'chat_job_acknowledgement_retry' });
       return { outcome: 'retried', jobId: job.jobId };
     }
-    log({ event: 'chat_job_succeeded', jobId: job.jobId, sessionVersion: job.sessionVersion });
+    observeChatJob('duration', (now() - startedAt) / 1000);
+    safeLog({ event: 'chat_job_succeeded', sessionVersion: job.sessionVersion });
     return { outcome: 'succeeded', jobId: job.jobId };
   }
   if (status === 400) {
