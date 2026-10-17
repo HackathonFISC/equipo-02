@@ -62,7 +62,7 @@ export interface WorkflowDependencies {
   matching?: MatchingService;
   matchingEnv?: MatchingEnv;
   /** Cached training catalog used to build the roadmap. */
-  trainingCatalog?: TrainingCatalog;
+  trainingCatalog?: TrainingCatalog | Record<string, unknown>;
   /** Training preferences used to build the roadmap. */
   trainingPreferences?: TrainingPreferences;
 }
@@ -99,7 +99,7 @@ export class WorkflowRuntime {
   private readonly clock: () => string;
   private readonly langfuse?: LangfuseClient;
   private readonly matching?: MatchingService;
-  private readonly trainingCatalog?: TrainingCatalog;
+  private readonly trainingCatalog?: TrainingCatalog | Record<string, unknown>;
   private readonly trainingPreferences?: TrainingPreferences;
   private readonly active = new Map<string, WorkflowServices>();
   private readonly cache = new Map<string, WorkflowResult>();

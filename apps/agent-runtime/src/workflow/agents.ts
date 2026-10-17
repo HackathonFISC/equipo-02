@@ -27,6 +27,8 @@ import {
 import {
   buildRoadmap,
   deriveGaps,
+  type TrainingCatalog,
+  type TrainingPreferences,
 } from "@puente/training";
 
 export interface WorkflowStreamEvent {
@@ -41,6 +43,9 @@ export interface WorkflowServices {
   router: ModelRouter;
   /** Optional validated matching seam for the market-and-matching step. */
   matching?: MatchingService;
+  /** Training catalog supplied by callers; runtime validation happens in the training seam. */
+  trainingCatalog?: TrainingCatalog | Record<string, unknown>;
+  trainingPreferences?: TrainingPreferences;
   clock: () => string;
   envelopes: AgentEnvelope[];
   emit?: (event: WorkflowStreamEvent) => void;
@@ -315,7 +320,7 @@ export async function runAgent(
               gaps,
               preferences: services.trainingPreferences,
             },
-            services.trainingCatalog,
+             services.trainingCatalog as TrainingCatalog,
             { now: () => new Date(services.clock()) },
           );
           move(services, dqlId, "success", `${agent} completed deterministically`);
