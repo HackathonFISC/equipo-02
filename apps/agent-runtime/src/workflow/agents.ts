@@ -189,6 +189,8 @@ export async function runAgent(
     return reject(carrier, services, agent, span.id, dqlId, [permission]);
   }
 
+  const prompt = promptFor(agent, carrier);
+  try {
   if (agent === "market_and_matching" && services.matching && services.matchingInput) {
     const suppliedInput = await services.matchingInput(carrier);
     const nomination = await services.matching.nominateForCandidate({
@@ -226,8 +228,6 @@ export async function runAgent(
     };
   }
 
-  const prompt = promptFor(agent, carrier);
-  try {
     const completion = await services.router.complete({
       capability: AGENT_CAPABILITIES[agent],
       prompt,

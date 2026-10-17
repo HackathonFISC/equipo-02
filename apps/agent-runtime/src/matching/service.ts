@@ -104,7 +104,7 @@ export class MatchingService {
     if (!Number.isFinite(capturedAt)) {
       throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has invalid freshness metadata.`);
     }
-    const maxAgeHours = vacancy.context.freshnessMaxAgeHours ?? 72;
+    const maxAgeHours = 72;
     if (now.getTime() - capturedAt > maxAgeHours * 60 * 60 * 1000) {
       throw new MatchingInputError(
         `Vacancy ${vacancy.document.vacancyId} is stale: older than ${maxAgeHours} hours.`,
@@ -125,7 +125,7 @@ export class MatchingService {
 
   private freshnessWarning(vacancy: VacancyMatchInput, now: Date): string | null {
     const ageHours = (now.getTime() - Date.parse(vacancy.document.capturedAt)) / (60 * 60 * 1000);
-    const maxAgeHours = vacancy.context.freshnessMaxAgeHours ?? 72;
+    const maxAgeHours = 72;
     return ageHours >= maxAgeHours - 24 && ageHours <= maxAgeHours
       ? `Vacancy ${vacancy.document.vacancyId} is approaching its ${maxAgeHours}-hour freshness limit.`
       : null;

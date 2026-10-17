@@ -8,7 +8,13 @@ import {
 import { runAgent, type WorkflowServices, type WorkflowStreamEvent } from "./agents";
 import { assertCarrier, carrierSchema, type Carrier } from "./carrier";
 import type { GuardrailDecision } from "./guardrails";
-import type { CandidateNominationInput, MatchingService } from "../matching";
+import {
+  createMatchingService,
+  matchingConfigFromEnv,
+  type CandidateNominationInput,
+  type MatchingEnv,
+  type MatchingService,
+} from "../matching";
 import { CAPABILITY_CHAINS, ModelRouter, type ModelInvoke } from "./models";
 import {
   AppendOnlyAuditLog,
@@ -46,6 +52,7 @@ export interface WorkflowDependencies {
   /** Matching service used when the caller supplies validated matching input. */
   matching?: MatchingService;
   matchingInput?: (carrier: Carrier) => CandidateNominationInput | Promise<CandidateNominationInput>;
+  matchingEnv?: MatchingEnv;
 }
 
 export interface WorkflowRunOptions {
@@ -87,7 +94,7 @@ export class WorkflowRuntime {
   constructor(deps: WorkflowDependencies) {
     this.clock = deps.clock ?? (() => new Date().toISOString());
     this.langfuse = deps.langfuse;
-    this.matching = deps.matching;
+    this.matching = deps.matching ?? createMatchingService(matchingConfigFromEnv(deps.matchingEnv));
     this.matchingInput = deps.matchingInput;
     this.router = new ModelRouter(CAPABILITY_CHAINS, deps.complete);
     if (deps.catalog) this.router.preflight(deps.catalog);
