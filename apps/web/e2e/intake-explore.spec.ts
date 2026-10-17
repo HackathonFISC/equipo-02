@@ -147,10 +147,13 @@ test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ searches: [{ matches: [], newSinceLastVisit: [{ vacancy: { jobId: 'new-1', title: 'Nueva vacante', company: 'Empresa', location: { raw: 'Panamá' }, salary: { minUsd: null, maxUsd: null }, modality: 'remote', provenance: { sourceUrl: 'https://example.test/job' } }, freshness: { label: 'Nueva' }, matchReasons: [] }], summary: { matched: 1 } }] }) });
   });
+  await page.route('**/api/candidate', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ candidateId: 'candidate-e2e' }) }));
   await page.goto('/vacantes');
   await expect(page.getByRole('heading', { name: 'Nuevas desde tu última visita' })).toBeVisible(RESPUESTA);
   await expect(page.getByText('Nueva vacante')).toBeVisible(RESPUESTA);
   await expect.poll(() => acknowledged).toBe(true);
+  await page.goto('/ruta');
+  await expect(page.getByRole('link', { name: /Vacantes/ })).toContainText('1');
   await page.getByRole('button', { name: 'Guardar esta búsqueda' }).click();
   await page.getByLabel('Nombre de la búsqueda').fill('Búsqueda e2e');
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();

@@ -22,10 +22,11 @@ export function CandidateShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [newCount, setNewCount] = useState(0);
   useEffect(() => {
-    const candidateId = window.localStorage.getItem('puente:candidateId');
-    if (!candidateId || pathname === '/vacantes') return;
-    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`)
+    if (pathname === '/vacantes') return;
+    fetch('/api/candidate')
       .then((response) => response.ok ? response.json() : null)
+      .then((candidate: { candidateId?: string } | null) => candidate?.candidateId ? fetch(`/api/searches?candidateId=${encodeURIComponent(candidate.candidateId)}`) : null)
+      .then((response) => response && response.ok ? response.json() : null)
       .then((body: { searches?: Array<{ newSinceLastVisit?: unknown[] }> } | null) => setNewCount(body?.searches?.reduce((total, view) => total + (view.newSinceLastVisit?.length ?? 0), 0) ?? 0))
       .catch(() => undefined);
   }, [pathname]);
