@@ -1,0 +1,33 @@
+{
+  "status": "blocked",
+  "identifier": "26",
+  "prNumber": 26,
+  "branch": "feat/issue-20-integrate-solver-seam-agent-runtime-geocoding-google-maps",
+  "fixedPoint": "main",
+  "reviewPasses": 2,
+  "lastImplementationCommit": "f724484",
+  "completed": [
+    "Blocked pair evaluation is rejected before solver invocation.",
+    "Unknown local geocoding results are rejected instead of silently scored at the Panama City default."
+  ],
+  "validation": {
+    "passed": true,
+    "commands": [
+      "npm exec vitest run apps/agent-runtime/src/matching/__tests__/service.test.ts apps/agent-runtime/src/matching/__tests__/geocode.test.ts",
+      "npm run typecheck"
+    ],
+    "notes": "18 targeted tests passed; typecheck passed."
+  },
+  "deferred": [
+    {
+      "finding": "Production workflow does not receive validated profiles/vacancies or invoke MatchingService; production Google Maps wiring and freshness warnings depend on that boundary.",
+      "owner": "KerubeDev",
+      "followUpTicket": 27,
+      "reason": "WorkflowRunRequest currently carries only raw candidateText and vacancyText; implementing this here would require inventing or parsing unvalidated domain facts."
+    }
+  ],
+  "remaining": [
+    "Duplicated preparation logic is a non-blocking judgement-call smell."
+  ],
+  "nextConsumer": "implement-review-fixes for issue #27, then review-pr"
+}
