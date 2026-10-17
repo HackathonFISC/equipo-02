@@ -1,0 +1,10 @@
+{
+  "status": "blocked",
+  "pr": 107,
+  "fixedPoint": "main",
+  "passes": 2,
+  "completed": ["Atomic per-candidate uniqueness constraint", "queued-only limit semantics", "redacted worker context logging", "terminal worker failure observation"],
+  "remaining": ["Global queued limit is not atomic across concurrent SQL enqueues", "metrics are not exported or fully maintained", "alert windows and dedicated metrics/redaction tests are missing"],
+  "blocker": "The remaining requirements need a transaction/exporter and a dead-letter/metrics test seam not present in the current queue contract.",
+  "nextConsumer": "implement-review-fixes"
+}
