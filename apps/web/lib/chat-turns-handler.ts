@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { HandlerResult } from './handler-result';
 import { MAX_MESSAGE_LENGTH, parseChatAction } from './chat-handler';
-import { getChatJobStore, type ChatJob, type ChatJobStore } from './chat-jobs';
+import { ChatJobBackpressureError, getChatJobStore, type ChatJob, type ChatJobStore } from './chat-jobs';
 
 /** Upper bound on a candidate id accepted by the versioned chat seam. */
 export const MAX_CANDIDATE_ID_LENGTH = 128;
@@ -95,8 +95,13 @@ export async function enqueueChatTurn(
       payload: { message: parsed.message, action: parsed.action },
       traceId: deps.traceId ?? requestId,
       requestId,
+      enforceAdmission: true,
     }));
-  } catch {
+  } catch (error) {
+    if (error instanceof ChatJobBackpressureError) {
+      const result = chatTurnError('chat_backpressure', 'Another chat turn is already being processed.', { status: 429, requestId, retryable: true });
+      return { ...result, headers: { 'Retry-After': String(error.retryAfterSeconds) } };
+    }
     return chatTurnError('queue_unavailable', 'The chat queue is temporarily unavailable.', {
       status: 503,
       requestId,

@@ -17,6 +17,7 @@ create table if not exists chat_jobs (
   -- Lease fields: a running job is reclaimed once its lease expires.
   lease_owner text,
   lease_expires_at timestamptz,
+  next_attempt_at timestamptz,
   trace_id text not null,
   request_id text not null,
   -- Completed ChatTurn for a succeeded job; never holds prompt or provider details.
@@ -30,6 +31,8 @@ create table if not exists chat_jobs (
   started_at timestamptz,
   finished_at timestamptz
 );
+
+alter table chat_jobs add column if not exists next_attempt_at timestamptz;
 
 create unique index if not exists chat_jobs_idempotency_idx on chat_jobs (candidate_id, idempotency_key);
 create index if not exists chat_jobs_claim_idx on chat_jobs (status, created_at);

@@ -42,9 +42,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const idempotencyKey = request.headers.get('idempotency-key') ?? undefined;
-  const { status, body } = await enqueueChatTurn(candidateId, idempotencyKey, payload, {
+  const { status, body, headers } = await enqueueChatTurn(candidateId, idempotencyKey, payload, {
     requestId,
     traceId: request.headers.get('x-trace-id') ?? requestId,
   });
-  return NextResponse.json(body, { status });
+  return NextResponse.json(body, { status, headers });
 }

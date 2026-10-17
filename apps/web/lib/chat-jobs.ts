@@ -30,6 +30,7 @@ export interface ChatJob {
   maxAttempts: number;
   leaseOwner?: string;
   leaseExpiresAt?: string;
+  nextAttemptAt?: string;
   traceId: string;
   requestId: string;
   result?: unknown;
@@ -48,12 +49,18 @@ export interface EnqueueChatJobInput {
   traceId: string;
   requestId: string;
   maxAttempts?: number;
+  enforceAdmission?: boolean;
 }
 
 export interface EnqueueChatJobResult {
   job: ChatJob;
   /** False when an existing job already matched (candidate_id, idempotency_key). */
   created: boolean;
+}
+
+export class ChatJobBackpressureError extends Error {
+  readonly retryAfterSeconds = 1;
+  constructor() { super('chat_job_backpressure'); this.name = 'ChatJobBackpressureError'; }
 }
 
 export interface ClaimChatJobOptions {
@@ -75,7 +82,7 @@ export interface ChatJobStore {
   succeed(jobId: string, result: unknown): Promise<void>;
   fail(jobId: string, error: ChatJobError): Promise<void>;
   /** Release a lease without completing, so a transient failure can be retried. */
-  release(jobId: string): Promise<void>;
+  release(jobId: string, delayMs?: number): Promise<void>;
   deleteByCandidate(candidateId: string): Promise<void>;
 }
 
@@ -97,6 +104,9 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       if (existingId) {
         const existing = jobs.get(existingId);
         if (existing) return { job: clone(existing), created: false };
+      }
+      if (input.enforceAdmission && [...jobs.values()].some((candidate) => candidate.candidateId === input.candidateId && (candidate.status === 'queued' || candidate.status === 'running'))) {
+        throw new ChatJobBackpressureError();
       }
       const now = new Date().toISOString();
       const job: ChatJob = {
@@ -135,7 +145,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       // Admit only the oldest unfinished job for a candidate. This prevents a
       // later session version from running while an earlier turn is in flight.
       const next = [...jobs.values()].find((job) => {
-        if (!claimable(job, at)) return false;
+        if (!claimable(job, at) || (job.nextAttemptAt !== undefined && Date.parse(job.nextAttemptAt) > at)) return false;
         return ![...jobs.values()].some(
           (earlier) =>
             earlier.jobId !== job.jobId &&
@@ -180,10 +190,13 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       job.updatedAt = job.finishedAt;
     },
 
-    async release(jobId) {
+    async release(jobId, delayMs = 0) {
       const job = jobs.get(jobId);
       if (!job) return;
       job.status = 'queued';
+      // The in-memory adapter is a deterministic test double; production SQL
+      // persists the delay in next_attempt_at.
+      delete job.nextAttemptAt;
       delete job.leaseOwner;
       delete job.leaseExpiresAt;
       job.updatedAt = new Date().toISOString();
@@ -225,6 +238,7 @@ function mapRow(row: Record<string, unknown>): ChatJob {
   };
   if (row.lease_owner) job.leaseOwner = String(row.lease_owner);
   if (row.lease_expires_at) job.leaseExpiresAt = toIso(row.lease_expires_at);
+  if (row.next_attempt_at) job.nextAttemptAt = toIso(row.next_attempt_at);
   if (row.result !== null && row.result !== undefined) job.result = row.result;
   if (row.error_code) {
     job.error = {
@@ -243,6 +257,17 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
   return {
     async enqueue(input) {
       const jobId = `chatjob_${randomUUID()}`;
+      const active = input.enforceAdmission ? await query(
+        `select 1 from chat_jobs where candidate_id = $1 and status in ('queued', 'running') limit 1`,
+        [input.candidateId],
+      ) : { rows: [] };
+      if (active.rows[0]) {
+        const existing = await query(
+          'select 1 from chat_jobs where candidate_id = $1 and idempotency_key = $2',
+          [input.candidateId, input.idempotencyKey],
+        );
+        if (!existing.rows[0]) throw new ChatJobBackpressureError();
+      }
       const inserted = await query(
         `insert into chat_jobs
            (job_id, candidate_id, idempotency_key, session_version, payload, status, attempts, max_attempts, trace_id, request_id)
@@ -297,7 +322,8 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
              updated_at = now()
          where job_id = (
            select candidate_job.job_id from chat_jobs candidate_job
-           where (candidate_job.status = 'queued' or (candidate_job.status = 'running' and candidate_job.lease_expires_at < now()))
+            where (candidate_job.status = 'queued' or (candidate_job.status = 'running' and candidate_job.lease_expires_at < now()))
+              and (candidate_job.next_attempt_at is null or candidate_job.next_attempt_at <= now())
              and not exists (
                select 1 from chat_jobs earlier_job
                where earlier_job.candidate_id = candidate_job.candidate_id
@@ -342,12 +368,13 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
       );
     },
 
-    async release(jobId) {
+    async release(jobId, delayMs = 0) {
       await query(
         `update chat_jobs
-         set status = 'queued', lease_owner = null, lease_expires_at = null, updated_at = now()
+         set status = 'queued', next_attempt_at = case when $2::int > 0 then now() + ($2::text || ' milliseconds')::interval else null end,
+             lease_owner = null, lease_expires_at = null, updated_at = now()
          where job_id = $1`,
-        [jobId],
+        [jobId, delayMs],
       );
     },
 
