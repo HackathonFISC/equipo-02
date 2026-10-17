@@ -6,14 +6,14 @@
   "prUrl": "https://github.com/HackathonFISC/equipo-02/pull/105",
   "branch": "feat/issue-91-build-the-durable-chat-turn-path",
   "fixedPoint": "origin/main (7acb1e3)",
-  "reviewPasses": 4,
+  "reviewPasses": 5,
   "plansPosted": 2,
   "implementations": ["91a1574", "41b114a"],
   "status": "blocked",
   "standardsFindings": 2,
   "specFindings": 4,
   "blockedBy": [
-    "The same parent-spec backpressure/retry/observability findings recur after more than three review passes.",
+    "The same parent-spec backpressure/retry/observability findings recur after more than three review passes; the latest pass additionally identifies the missing global 1000-job limit.",
     "The configured PostgreSQL/Neon fixture is unreachable (ETIMEDOUT/ENETUNREACH), so real DB evidence is unavailable."
   ],
   "deferred": [
