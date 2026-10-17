@@ -1,4 +1,5 @@
 import { assertAgentEnvelope, type AgentEnvelope, type AgentId } from "@puente/domain";
+import type { Aptitude } from "@puente/solver";
 import type { Carrier } from "./carrier";
 import {
   DEFAULT_AGENT_TOOL,
@@ -19,6 +20,14 @@ import {
 } from "./models";
 import type { AppendOnlyAuditLog, DqlRecord, DqlStore, LangfuseRecorder } from "./observability";
 import type { CandidateNominationInput, MatchingService } from "../matching";
+import {
+  toSolverCandidate,
+  toSolverVacancy,
+} from "../matching";
+import {
+  buildRoadmap,
+  deriveGaps,
+} from "@puente/training";
 
 export interface WorkflowStreamEvent {
   event: "envelope" | "lifecycle" | "trace";
@@ -100,6 +109,20 @@ function promptFor(agent: AgentId, carrier: Carrier): string {
     `Vacancy: ${redactPii(carrier.vacancyText).slice(0, 400)}`,
     "Reply with a short employability note and no contact details.",
   ].join(" ");
+}
+
+/** The lowest (least apt) band across decisions; an apt result never outranks a gap. */
+function worstAptitude(decisions: readonly { aptitude: Aptitude }[]): Aptitude {
+  const rank: Record<Aptitude, number> = {
+    not_currently_apt: 0,
+    apt_with_gaps: 1,
+    apt: 2,
+  };
+  let worst: Aptitude = "apt";
+  for (const decision of decisions) {
+    if (rank[decision.aptitude] < rank[worst]) worst = decision.aptitude;
+  }
+  return worst;
 }
 
 function reject(
@@ -226,10 +249,130 @@ export async function runAgent(
     });
     return {
       ...carrier,
+      matchResult: nomination,
       summaries: [...carrier.summaries, { agent, summary }],
       status: carrier.status,
     };
   }
+
+    // TRAINING: avoid the model router when deterministic inputs are sufficient.
+    // Handles apt (empty roadmap), apt_with_gaps/not_currently_apt (roadmap), and
+    // preferences_required (preferences missing: no model-router fallback).
+    if (agent === "training" && carrier.matchResult && carrier.matchingInput && services.trainingCatalog) {
+      if (!services.trainingPreferences) {
+        // preferences_required: a roadmap is needed but preferences were not supplied.
+        // Do not fall back to the model router; return without a roadmap.
+        move(services, dqlId, "success", `${agent} completed without roadmap: preferences required`);
+        audit(services, carrier, agent, "agent_completed", {
+          tool,
+          evidence: "training preferences required; roadmap skipped",
+          constraint: null,
+        });
+        const closed = services.traces.endSpan(span.id, {
+          endTime: services.clock(),
+          output: { roadmap: null, reason: "preferences_required" },
+          metadata: { deterministic: true, preferencesRequired: true },
+        });
+        services.emit?.({ event: "trace", data: closed });
+        publish(services, carrier, agent, "response", {
+          summary: JSON.stringify({
+            candidateId: carrier.matchResult.candidateId,
+            roadmap: null,
+            preferencesRequired: true,
+          }),
+          deterministic: true,
+        });
+        return {
+          ...carrier,
+          summaries: [...carrier.summaries, { agent, summary: "training completed; preferences_required" }],
+          status: "success",
+        };
+      }
+      const input = carrier.matchingInput as CandidateNominationInput;
+      const nomination = carrier.matchResult;
+      const decisions = nomination.result.decisions;
+      const targetVacancyId =
+        nomination.result.assignments[0]?.vacancyId ??
+        decisions[0]?.vacancyId ??
+        input.vacancies[0]?.document.vacancyId ??
+        null;
+      const vacancyInput = input.vacancies.find((item) => item.document.vacancyId === targetVacancyId);
+      if (vacancyInput) {
+        const candidate = toSolverCandidate(input.profile, input.context, nomination.home);
+        const vacancyPoint = nomination.geocoding.vacancies[vacancyInput.document.vacancyId]?.point;
+        if (vacancyPoint) {
+          const solverVacancy = toSolverVacancy(
+            vacancyInput.document,
+            vacancyInput.context,
+            vacancyPoint,
+          );
+          const gaps = deriveGaps({ candidate, vacancy: solverVacancy });
+          const roadmapResult = await buildRoadmap(
+            {
+              candidateId: nomination.candidateId,
+              targetVacancyId,
+              aptitude: worstAptitude(decisions),
+              gaps,
+              preferences: services.trainingPreferences,
+            },
+            services.trainingCatalog,
+            { now: () => new Date(services.clock()) },
+          );
+          move(services, dqlId, "success", `${agent} completed deterministically`);
+          audit(services, carrier, agent, "roadmap_completed", {
+            tool,
+            evidence: `${roadmapResult.recommendations.length} recommendation(s)`,
+            constraint: null,
+          });
+          const closed = services.traces.endSpan(span.id, {
+            endTime: services.clock(),
+            output: { roadmap: roadmapResult.schemaVersion, recommendations: roadmapResult.recommendations.length },
+            metadata: { deterministic: true, aptitude: roadmapResult.aptitude },
+          });
+          services.emit?.({ event: "trace", data: closed });
+          publish(services, carrier, agent, "response", {
+            summary: JSON.stringify({
+              candidateId: roadmapResult.candidateId,
+              aptitude: roadmapResult.aptitude,
+              recommendations: roadmapResult.recommendations.length,
+            }),
+            deterministic: true,
+          });
+          return {
+            ...carrier,
+            roadmapResult,
+            summaries: [
+              ...carrier.summaries,
+              { agent, summary: `training completed; ${roadmapResult.recommendations.length} recommendation(s)` },
+            ],
+            status: "success",
+          };
+        }
+      }
+      // Deterministic inputs present but roadmap could not be derived (no vacancy/geocode).
+      // Return without a roadmap and without calling the model router.
+      move(services, dqlId, "success", `${agent} completed without roadmap`);
+      audit(services, carrier, agent, "agent_completed", {
+        tool,
+        evidence: "roadmap could not be derived from deterministic inputs",
+        constraint: null,
+      });
+      const closed = services.traces.endSpan(span.id, {
+        endTime: services.clock(),
+        output: { roadmap: null, reason: "roadmap_not_derived" },
+        metadata: { deterministic: true },
+      });
+      services.emit?.({ event: "trace", data: closed });
+      publish(services, carrier, agent, "response", {
+        summary: JSON.stringify({ candidateId: carrier.matchResult.candidateId, roadmap: null }),
+        deterministic: true,
+      });
+      return {
+        ...carrier,
+        summaries: [...carrier.summaries, { agent, summary: "training completed; roadmap not derived" }],
+        status: "success",
+      };
+    }
 
     const completion = await services.router.complete({
       capability: AGENT_CAPABILITIES[agent],
