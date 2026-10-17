@@ -1,11 +1,15 @@
-import Link from 'next/link';
+import { SignInForm } from './SignInForm';
 
-export default function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  return <SignInContent searchParams={searchParams} />;
+function safeNext(value: string | string[] | undefined): string {
+  const next = Array.isArray(value) ? value[0] : value;
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
 }
 
-async function SignInContent({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next = '/vacantes' } = await searchParams;
-  const destination = next.startsWith('/') ? next : '/vacantes';
-  return <main><h1>Ingresa para guardar tu búsqueda</h1><p>Vincula tu cuenta para recibir nuevas coincidencias dentro de Puente Laboral.</p><Link href={destination}>Continuar</Link></main>;
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  return <SignInForm next={safeNext(params.next)} />;
 }

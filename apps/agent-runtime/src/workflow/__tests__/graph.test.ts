@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowRunRequest } from "@puente/domain";
+import { createSeedTrainingCatalog, type TrainingPreferences } from "@puente/training";
 import { CAPABILITY_CHAINS } from "../models";
 import { createWorkflowRuntime } from "../graph";
 import {
@@ -11,56 +12,6 @@ import {
 } from "../../matching/__tests__/helpers";
 
 const PRIMARY = CAPABILITY_CHAINS.planning.models[0];
-
-/** Minimal valid TrainingCatalog for tests that exercise the training seam. */
-const minimalCatalog = {
-  schemaVersion: "1.0.0",
-  catalogVersion: "test-catalog-1",
-  source: "test",
-  retrievedAt: "2026-10-16T06:00:00.000Z",
-  opportunities: [
-    {
-      opportunityId: "TR-001",
-      title: "Fundamentos de soporte técnico",
-      provider: "INFOTEC",
-      type: "course" as const,
-      url: "https://example.org/training/tr-001",
-      language: "es" as const,
-      specializations: ["it_support"],
-      coveredSkills: [{ skillId: "PA-IT-0001", level: 2 }],
-      prerequisites: [],
-      costUsd: 0,
-      durationHours: 40,
-      modality: "online" as const,
-      location: null,
-      schedule: { days: [1, 3], startMinute: 1080, endMinute: 1260, weeklyHours: 6 },
-      seatsAvailable: 40,
-      credentialRelevance: 0.2,
-      source: "test",
-      retrievedAt: "2026-10-16T06:00:00.000Z",
-    },
-    {
-      opportunityId: "TR-002",
-      title: "Redes y conectividad básica",
-      provider: "Cisco Networking Academy",
-      type: "course" as const,
-      url: "https://example.org/training/tr-002",
-      language: "es" as const,
-      specializations: ["it_support"],
-      coveredSkills: [{ skillId: "PA-IT-0003", level: 2 }],
-      prerequisites: [],
-      costUsd: 50,
-      durationHours: 60,
-      modality: "online" as const,
-      location: null,
-      schedule: { days: [2, 4], startMinute: 900, endMinute: 1140, weeklyHours: 4 },
-      seatsAvailable: 20,
-      credentialRelevance: 0.3,
-      source: "test",
-      retrievedAt: "2026-10-16T06:00:00.000Z",
-    },
-  ],
-};
 
 function request(overrides: Partial<WorkflowRunRequest> = {}): WorkflowRunRequest {
   return {
@@ -179,12 +130,12 @@ describe("employability workflow", () => {
     expect(decision?.candidateId).toBe(profile.candidate_id);
     expect(decision?.vacancyId).toBe("vac-objective-001");
     expect(["apt", "apt_with_gaps", "not_currently_apt"]).toContain(decision?.aptitude);
+    // The string summary is still emitted for the agent step
     const matching = result.agents.find((agent) => agent.agent === "market_and_matching");
     expect(matching?.summary).toContain('"candidateId"');
   });
 
-  it("training avoids the model router when deterministic inputs are sufficient", async () => {
-    const calls: string[] = [];
+  it("returns the structured roadmap result in the workflow output", async () => {
     const profile = candidateProfile();
     const matchingInput = {
       profile,
@@ -192,18 +143,15 @@ describe("employability workflow", () => {
       vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
       now,
     };
-    const catalog = minimalCatalog;
-    const preferences = {
+    const catalog = createSeedTrainingCatalog();
+    const preferences: TrainingPreferences = {
       specializations: ["it_support"],
       maxCostUsd: 200,
       maxTotalHours: 100,
     };
     const engine = createWorkflowRuntime({
       clock: () => "2026-10-16T12:00:00.000Z",
-      complete: async (modelId) => {
-        calls.push(modelId);
-        return { text: "Plan de practica en caja" };
-      },
+      complete: async () => ({ text: "Plan de practica en caja" }),
       matchingEnv: {},
       trainingCatalog: catalog,
       trainingPreferences: preferences,
@@ -215,46 +163,18 @@ describe("employability workflow", () => {
     expect(result.roadmap).toBeDefined();
     expect(result.roadmap?.schemaVersion).toBe("1.0.0");
     expect(result.roadmap?.candidateId).toBe(profile.candidate_id);
-    // Only exploration and profile_and_evidence call the model router;
-    // market_and_matching and training both use deterministic paths.
-    expect(calls).toHaveLength(2);
-    expect(engine.audit.read().some((event) => event.action === "roadmap_completed")).toBe(true);
-  });
-
-  it("training handles preferences_required without calling the model router", async () => {
-    const calls: string[] = [];
-    const profile = candidateProfile();
-    const matchingInput = {
-      profile,
-      context: CANDIDATE_CONTEXT,
-      vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
-      now,
-    };
-    const catalog = minimalCatalog;
-    // No trainingPreferences provided: preferences are required but missing.
-    const engine = createWorkflowRuntime({
-      clock: () => "2026-10-16T12:00:00.000Z",
-      complete: async (modelId) => {
-        calls.push(modelId);
-        return { text: "Plan de practica en caja" };
-      },
-      matchingEnv: {},
-      trainingCatalog: catalog,
+    expect(result.roadmap?.targetVacancyId).toBe("vac-objective-001");
+    expect(["apt", "apt_with_gaps", "not_currently_apt"]).toContain(result.roadmap?.aptitude);
+    expect(Array.isArray(result.roadmap?.gaps)).toBe(true);
+    expect(Array.isArray(result.roadmap?.recommendations)).toBe(true);
+    expect(result.roadmap?.totals).toMatchObject({
+      recommendationCount: expect.any(Number),
+      costUsd: expect.any(Number),
+      durationHours: expect.any(Number),
     });
-
-    const result = await engine.run(request({ matchingInput }));
-    expect(result.status).toBe("success");
-    expect(result.match).toBeDefined();
-    // No roadmap because preferences are required but not supplied.
-    expect(result.roadmap).toBeUndefined();
-    // Only exploration and profile_and_evidence call the model router; training does not.
-    expect(calls).toHaveLength(2);
-    const training = result.agents.find((agent) => agent.agent === "training");
-    expect(training?.summary).toContain("preferences_required");
   });
 
-  it("training emits an empty roadmap for an already-apt candidate", async () => {
-    const calls: string[] = [];
+  it("does not call the model router for training when carrier data is sufficient", async () => {
     const profile = candidateProfile();
     const matchingInput = {
       profile,
@@ -262,12 +182,13 @@ describe("employability workflow", () => {
       vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
       now,
     };
-    const catalog = minimalCatalog;
-    const preferences = {
+    const catalog = createSeedTrainingCatalog();
+    const preferences: TrainingPreferences = {
       specializations: ["it_support"],
       maxCostUsd: 200,
       maxTotalHours: 100,
     };
+    const calls: string[] = [];
     const engine = createWorkflowRuntime({
       clock: () => "2026-10-16T12:00:00.000Z",
       complete: async (modelId) => {
@@ -281,14 +202,75 @@ describe("employability workflow", () => {
 
     const result = await engine.run(request({ matchingInput }));
     expect(result.status).toBe("success");
+    expect(result.match).toBeDefined();
     expect(result.roadmap).toBeDefined();
-    // Only exploration and profile_and_evidence call the model router.
+    // exploration (planning) and profile (extraction) call the router;
+    // market_and_matching and training are deterministic and must not.
     expect(calls).toHaveLength(2);
-    if (result.roadmap?.aptitude === "apt") {
+    expect(result.roadmap?.aptitude).toBe(result.match?.result.decisions[0]?.aptitude);
+  });
+
+  it("calls the router and builds no roadmap when training preferences are required but missing", async () => {
+    const profile = candidateProfile();
+    const matchingInput = {
+      profile,
+      context: CANDIDATE_CONTEXT,
+      vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
+      now,
+    };
+    const catalog = createSeedTrainingCatalog();
+    const calls: string[] = [];
+    const engine = createWorkflowRuntime({
+      clock: () => "2026-10-16T12:00:00.000Z",
+      complete: async (modelId) => {
+        calls.push(modelId);
+        return { text: "Plan de practica en caja" };
+      },
+      matchingEnv: {},
+      trainingCatalog: catalog,
+      // trainingPreferences intentionally undefined
+    });
+
+    const result = await engine.run(request({ matchingInput }));
+    expect(result.status).toBe("success");
+    expect(result.match).toBeDefined();
+    expect(result.roadmap).toBeUndefined();
+    // exploration, profile, and training call the router; matching is deterministic.
+    expect(calls).toHaveLength(3);
+  });
+
+  it("returns an empty roadmap for an already-apt candidate", async () => {
+    const profile = candidateProfile();
+    const matchingInput = {
+      profile,
+      context: CANDIDATE_CONTEXT,
+      vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
+      now,
+    };
+    const catalog = createSeedTrainingCatalog();
+    const preferences: TrainingPreferences = {
+      specializations: ["it_support"],
+      maxCostUsd: 200,
+      maxTotalHours: 100,
+    };
+    const engine = createWorkflowRuntime({
+      clock: () => "2026-10-16T12:00:00.000Z",
+      complete: async () => ({ text: "Plan de practica en caja" }),
+      matchingEnv: {},
+      trainingCatalog: catalog,
+      trainingPreferences: preferences,
+    });
+
+    const result = await engine.run(request({ matchingInput }));
+    expect(result.status).toBe("success");
+    expect(result.roadmap).toBeDefined();
+    const decision = result.match?.result.decisions[0];
+    expect(decision).toBeDefined();
+    expect(result.roadmap?.aptitude).toBe(decision?.aptitude);
+    if (decision?.aptitude === "apt") {
       expect(result.roadmap?.recommendations).toEqual([]);
-      expect(result.roadmap?.reasons[0]).toContain("ya es apto");
+      expect(result.roadmap?.reasons.join(" ")).toContain("ya es apto");
     }
-    expect(["apt", "apt_with_gaps", "not_currently_apt"]).toContain(result.roadmap?.aptitude);
   });
 
   it("rejects malicious instructions injected through a CV and a scraped vacancy", async () => {

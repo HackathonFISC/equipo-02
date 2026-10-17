@@ -5,23 +5,11 @@ export const CREDENTIAL_STATUSES = ["verified", "unverified", "not_applicable"] 
 
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 export type CredentialStatus = (typeof CREDENTIAL_STATUSES)[number];
-
-export const PROFILE_CREDENTIAL_STATUSES = [
-  "declared",
-  "verified",
-  "partially_verified",
-  "unverified",
-  "rejected",
-] as const;
-
-export type ProfileCredentialStatus = (typeof PROFILE_CREDENTIAL_STATUSES)[number];
-
-export interface ProfileEvidenceItem {
-  id: string;
-  kind: EvidenceItem["kind"];
-  text: string;
-  credentialStatus: ProfileCredentialStatus;
-}
+export type ProfileCredentialStatus =
+  | CredentialStatus
+  | "declared"
+  | "partially_verified"
+  | "rejected";
 
 export interface EvidenceItem {
   id: string;
@@ -69,29 +57,35 @@ export function parseEvidence(value: unknown): EvidenceItem[] {
 }
 
 /**
- * Map a candidate's profile evidence to application EvidenceItem.
- *
- * Certification evidence keeps its verified status only when already verified;
- * declared, partially_verified, unverified, and rejected certifications are
- * treated as unverified for application purposes. Non-certification evidence
- * (experience, skill, education) maps to not_applicable regardless of input
- * status, since it is not a verifiable credential.
+ * Maps evidence credentialStatus based on the evidence kind:
+ * - For certification evidence: maps verified → "verified",
+ *   declared/partially_verified/unverified/rejected → "unverified"
+ * - For non-certification evidence: maps to "not_applicable"
  */
 export function toApplicationEvidence(
-  profileEvidence: readonly ProfileEvidenceItem[],
+  evidence: readonly (Omit<EvidenceItem, "credentialStatus"> & {
+    credentialStatus: ProfileCredentialStatus;
+  })[],
 ): EvidenceItem[] {
-  return profileEvidence.map((item) => {
-    const credentialStatus: CredentialStatus =
-      item.kind === "certification"
-        ? item.credentialStatus === "verified"
-          ? "verified"
-          : "unverified"
-        : "not_applicable";
+  const result = evidence.map((item) => {
+    if (item.kind === 'certification') {
+      const statusMap: Record<string, CredentialStatus> = {
+        verified: 'verified',
+        declared: 'unverified',
+        partially_verified: 'unverified',
+        unverified: 'unverified',
+        rejected: 'unverified',
+      };
+      return {
+        ...item,
+       credentialStatus: (statusMap[item.credentialStatus] ?? 'unverified') as CredentialStatus,
+      };
+    }
+    // Non-certification evidence gets "not_applicable"
     return {
-      id: item.id,
-      kind: item.kind,
-      text: item.text,
-      credentialStatus,
+      ...item,
+       credentialStatus: 'not_applicable' as const,
     };
   });
+  return result;
 }
