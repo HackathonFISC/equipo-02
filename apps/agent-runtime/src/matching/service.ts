@@ -121,10 +121,20 @@ export class MatchingService {
           throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has no matching context.`);
         }
         const context = vacancy.context as unknown as Record<string, unknown>;
-        for (const field of ["schedule", "salaryMinUsd", "salaryMaxUsd", "capacity"]) {
-          if (context[field] === undefined) {
+        const schedule = context.schedule as Record<string, unknown> | undefined;
+        if (
+          !schedule ||
+          !Array.isArray(schedule.days) ||
+          !Number.isFinite(schedule.startMinute) ||
+          !Number.isFinite(schedule.endMinute) ||
+          !Number.isFinite(schedule.weeklyHours)
+        ) {
+          throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has an invalid schedule context.`);
+        }
+        for (const field of ["salaryMinUsd", "salaryMaxUsd", "capacity"]) {
+          if (typeof context[field] !== "number" || !Number.isFinite(context[field])) {
             throw new MatchingInputError(
-              `Vacancy ${vacancy.document.vacancyId} matching context is missing ${field}.`,
+              `Vacancy ${vacancy.document.vacancyId} has an invalid ${field} context.`,
             );
           }
         }
@@ -138,17 +148,22 @@ export class MatchingService {
   }
 
   private validateCandidateContext(context: CandidateMatchContext): void {
-    if (!context || typeof context !== "object" || !context.home || !context.availability || !context.transport) {
+    if (
+      !context ||
+      typeof context !== "object" ||
+      !context.home ||
+      !context.availability ||
+      !context.transport ||
+      !Array.isArray(context.availability.days) ||
+      !Number.isFinite(context.availability.startMinute) ||
+      !Number.isFinite(context.availability.endMinute) ||
+      !Number.isFinite(context.availability.weeklyHours) ||
+      typeof context.transport.hasVehicle !== "boolean" ||
+      !Number.isFinite(context.transport.maxCommuteMinutes) ||
+      typeof context.expectedSalaryUsd !== "number" ||
+      !Number.isFinite(context.expectedSalaryUsd)
+    ) {
       throw new MatchingInputError("Candidate matching context is incomplete.");
-    }
-    for (const [name, value] of [
-      ["expectedSalaryUsd", context.expectedSalaryUsd],
-      ["availability", context.availability],
-      ["transport", context.transport],
-    ] as const) {
-      if (value === undefined || value === null) {
-        throw new MatchingInputError(`Candidate matching context is missing ${name}.`);
-      }
     }
   }
 

@@ -101,6 +101,17 @@ describe("MatchingService.evaluatePair", () => {
       }),
     ).rejects.toMatchObject({ code: "matching_input" });
   });
+
+  it("rejects malformed matching contexts before adaptation", async () => {
+    const service = offlineService();
+    await expect(
+      service.nominateForCandidate({
+        profile: candidateProfile(),
+        context: { ...CANDIDATE_CONTEXT, availability: {} as never },
+        vacancies: [{ document: await objectiveDocument(), context: VACANCY_CONTEXT }],
+      }),
+    ).rejects.toMatchObject({ code: "matching_input" });
+  });
 });
 
 describe("MatchingService.nominateForCandidate", () => {
