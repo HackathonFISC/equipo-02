@@ -6,15 +6,14 @@
   "prUrl": "https://github.com/HackathonFISC/equipo-02/pull/105",
   "branch": "feat/issue-91-build-the-durable-chat-turn-path",
   "fixedPoint": "origin/main (7acb1e3)",
-  "reviewPasses": 3,
+  "reviewPasses": 4,
   "plansPosted": 2,
   "implementations": ["91a1574", "41b114a"],
   "status": "blocked",
   "standardsFindings": 2,
-  "specFindings": 5,
+  "specFindings": 4,
   "blockedBy": [
-    "The same parent-spec backpressure/retry/observability findings recur after three review passes.",
-    "jobs.succeed() acknowledgement failure can leave a committed job running until lease expiry.",
+    "The same parent-spec backpressure/retry/observability findings recur after more than three review passes.",
     "The configured PostgreSQL/Neon fixture is unreachable (ETIMEDOUT/ENETUNREACH), so real DB evidence is unavailable."
   ],
   "deferred": [
@@ -29,6 +28,6 @@
     "tests": "npm test: 692 passed, 10 skipped; npm run gate:ci passed; focused tests 37 passed, 2 skipped",
     "result": "Code validation passed; real database integration remains blocked by unavailable network access."
   },
-  "loopComment": "https://github.com/HackathonFISC/equipo-02/pull/105#issuecomment-6233144531",
+  "loopComment": "https://github.com/HackathonFISC/equipo-02/pull/105#issuecomment-6233185913",
   "nextConsumer": "plan-review-fixes"
 }
