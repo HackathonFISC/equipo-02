@@ -261,6 +261,11 @@ function mapRow(row: Record<string, unknown>): ChatJob {
 
 /** Postgres/Neon implementation of the queue data plane (migration 004_chat_jobs.sql). */
 export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
+  const refreshMetrics = async (): Promise<void> => {
+    const result = await query("select count(*)::int as depth, coalesce(extract(epoch from (now() - min(created_at))), 0)::int as oldest from chat_jobs where status = 'queued'", []);
+    const row = result.rows[0];
+    observeChatQueue({ queueDepth: Number(row?.depth ?? 0), oldestJobAgeSeconds: Number(row?.oldest ?? 0) });
+  };
   return {
     async enqueue(input) {
       const jobId = `chatjob_${randomUUID()}`;
@@ -279,7 +284,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
           [jobId, input.candidateId, input.idempotencyKey, input.sessionVersion, JSON.stringify(input.payload), input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS, input.traceId, input.requestId, CHAT_QUEUE_LIMIT],
         );
         const atomicRow = atomic.rows[0];
-        if (atomicRow) return { job: mapRow(atomicRow), created: true };
+        if (atomicRow) { await refreshMetrics(); return { job: mapRow(atomicRow), created: true }; }
         const existing = await query('select * from chat_jobs where candidate_id = $1 and idempotency_key = $2', [input.candidateId, input.idempotencyKey]);
         if (existing.rows[0]) return { job: mapRow(existing.rows[0]), created: false };
         throw new ChatJobBackpressureError();
@@ -302,7 +307,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
         ],
       );
       const insertedRow = inserted.rows[0];
-      if (insertedRow) return { job: mapRow(insertedRow), created: true };
+      if (insertedRow) { await refreshMetrics(); return { job: mapRow(insertedRow), created: true }; }
       const existing = await query(
         'select * from chat_jobs where candidate_id = $1 and idempotency_key = $2',
         [input.candidateId, input.idempotencyKey],
@@ -318,6 +323,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
         [candidateId, idempotencyKey],
       );
       const row = result.rows[0];
+      if (row) await refreshMetrics();
       return row ? mapRow(row) : undefined;
     },
 
@@ -357,6 +363,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
         [leaseOwner, String(leaseMs)],
       );
       const row = result.rows[0];
+      await refreshMetrics();
       return row ? mapRow(row) : undefined;
     },
 
@@ -370,6 +377,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
           where job_id = $1 and ($3::text is null or lease_owner = $3)`,
         [jobId, JSON.stringify(result), leaseOwner ?? null],
       );
+      await refreshMetrics();
     },
 
     async fail(jobId, error, leaseOwner) {
@@ -382,6 +390,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1 and ($5::text is null or lease_owner = $5)`,
         [jobId, error.code, error.message, error.retryable, leaseOwner ?? null],
       );
+      await refreshMetrics();
     },
 
     async release(jobId, delayMs = 0) {
@@ -392,6 +401,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1`,
         [jobId, delayMs],
       );
+      await refreshMetrics();
     },
 
     async deleteByCandidate(candidateId) {

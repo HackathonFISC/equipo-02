@@ -33,7 +33,9 @@ const metrics: ChatQueueMetrics = {
   workerErrors: 0, deadLetters: 0, sessionConflicts: 0, providerTimeouts: 0,
 };
 let oldestAgeSince: number | undefined;
-let errorRateSince: number | undefined;
+const attemptsAt: number[] = [];
+const errorsAt: number[] = [];
+let errorRateAboveSince: number | undefined;
 
 /** Stable 64-bit correlation hash; never log the candidate identifier itself. */
 export function candidateHash(id: string): string {
@@ -47,15 +49,15 @@ export function observeChatQueue(update: Partial<ChatQueueMetrics>, now = Date.n
 }
 
 export function observeChatJob(event: 'attempt' | 'worker_error' | 'dead_letter' | 'session_conflict' | 'provider_timeout' | 'duration', durationSeconds?: number, now = Date.now()): void {
-  if (event === 'attempt') metrics.attempts += 1;
-  if (event === 'worker_error') metrics.workerErrors += 1;
+  if (event === 'attempt') { metrics.attempts += 1; attemptsAt.push(now); }
+  if (event === 'worker_error') { metrics.workerErrors += 1; errorsAt.push(now); }
   if (event === 'dead_letter') metrics.deadLetters += 1;
   if (event === 'session_conflict') metrics.sessionConflicts += 1;
   if (event === 'provider_timeout') metrics.providerTimeouts += 1;
   if (event === 'duration' && durationSeconds !== undefined) metrics.durationsSeconds.push(durationSeconds);
-  const errorRate = metrics.attempts > 0 ? metrics.workerErrors / metrics.attempts : 0;
-  if (errorRate > CHAT_ALERT_RULES.workerErrorRate.threshold) errorRateSince ??= now;
-  else errorRateSince = undefined;
+  const errorRate = attemptsAt.length > 0 ? errorsAt.length / attemptsAt.length : 0;
+  if (errorRate > CHAT_ALERT_RULES.workerErrorRate.threshold) errorRateAboveSince ??= now;
+  else errorRateAboveSince = undefined;
 }
 
 export function getChatQueueMetrics(): ChatQueueMetrics {
@@ -64,13 +66,19 @@ export function getChatQueueMetrics(): ChatQueueMetrics {
 
 export function evaluateChatAlerts(now = Date.now()): string[] {
   const alerts: string[] = [];
+  const windowStart = now - CHAT_ALERT_RULES.workerErrorRate.forSeconds * 1000;
+  while (attemptsAt[0] !== undefined && attemptsAt[0] < windowStart) attemptsAt.shift();
+  while (errorsAt[0] !== undefined && errorsAt[0] < windowStart) errorsAt.shift();
+  if (attemptsAt.length === 0 || errorsAt.length / attemptsAt.length <= CHAT_ALERT_RULES.workerErrorRate.threshold) errorRateAboveSince = undefined;
   if (oldestAgeSince !== undefined && now - oldestAgeSince >= CHAT_ALERT_RULES.oldestJobAge.forSeconds * 1000) alerts.push('chat_queue_oldest_job_age');
-  if (errorRateSince !== undefined && now - errorRateSince >= CHAT_ALERT_RULES.workerErrorRate.forSeconds * 1000) alerts.push('chat_worker_error_rate');
+  if (errorRateAboveSince !== undefined && now - errorRateAboveSince >= CHAT_ALERT_RULES.workerErrorRate.forSeconds * 1000) alerts.push('chat_worker_error_rate');
   return alerts;
 }
 
 export function resetChatQueueMetrics(): void {
   Object.assign(metrics, { queueDepth: 0, oldestJobAgeSeconds: 0, attempts: 0, durationsSeconds: [], workerErrors: 0, deadLetters: 0, sessionConflicts: 0, providerTimeouts: 0 });
   oldestAgeSince = undefined;
-  errorRateSince = undefined;
+  attemptsAt.length = 0;
+  errorsAt.length = 0;
+  errorRateAboveSince = undefined;
 }
