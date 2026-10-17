@@ -130,6 +130,7 @@ export class ApplicationService {
   private readonly idempotency: IdempotencyStore<SubmitView>;
   private readonly outbox: NotificationOutbox;
   private readonly notifications: NotificationPort;
+  private readonly notificationActions = new Map<string, Promise<void>>();
   private readonly drafts = new Map<string, StoredDraft>();
   private readonly submissions = new Map<string, StoredSubmission>();
   private readonly events: AuditEvent[] = [];
@@ -213,6 +214,10 @@ export class ApplicationService {
   }
 
   async submit(session: unknown, draftId: string, raw: unknown): Promise<SubmitView> {
+    return this.serializeNotificationAction(`draft:${draftId}`, () => this.submitDraft(session, draftId, raw));
+  }
+
+  private async submitDraft(session: unknown, draftId: string, raw: unknown): Promise<SubmitView> {
     const actor = this.actor(session);
     this.requireRole(actor, "candidate", "Only the candidate can submit the application.");
     const draft = this.draftById(draftId);
@@ -255,15 +260,19 @@ export class ApplicationService {
       interview: "pending_employer_approval",
       history: [...draft.history, this.historyEntry(actor, "submission", action.reason)],
     };
+    await this.notify(actor, "submission", action, "employer");
     draft.status = "submitted";
     this.submissions.set(submission.id, submission);
-    await this.notify(actor, "submission", action, "employer");
     const view = this.submitView(submission, false);
     await this.idempotency.put({ key: action.idempotencyKey, fingerprint, response: view });
     return view;
   }
 
   async decideInterview(session: unknown, submissionId: string, raw: unknown): Promise<SubmitView> {
+    return this.serializeNotificationAction(`interview:${submissionId}`, () => this.recordInterviewDecision(session, submissionId, raw));
+  }
+
+  private async recordInterviewDecision(session: unknown, submissionId: string, raw: unknown): Promise<SubmitView> {
     const actor = this.actor(session);
     this.requireRole(actor, "employer", "Only an employer can decide interview progression.");
     const submission = this.submissionById(submissionId);
@@ -276,10 +285,10 @@ export class ApplicationService {
       throw new ApplicationError("Interview progression was already decided.", 409, "interview_decided");
     }
     if (decision === "rejected") {
+      await this.notify(actor, "rejection", action, "candidate");
       submission.employerRejection = this.decision(actor, action.reason, []);
       submission.interview = "rejected";
       submission.history.push(this.historyEntry(actor, "rejection", action.reason));
-      await this.notify(actor, "rejection", action, "candidate");
     } else if (!submission.employerApproval) {
       throw new ApplicationError(
         "Employer approval is required before interview progression.",
@@ -287,9 +296,9 @@ export class ApplicationService {
         "employer_approval_required",
       );
     } else {
+      await this.notify(actor, "approval", action, "candidate");
       submission.interview = "approved";
       submission.history.push(this.historyEntry(actor, "approval", action.reason));
-      await this.notify(actor, "approval", action, "candidate");
     }
     return this.submitView(submission, false);
   }
@@ -645,7 +654,26 @@ export class ApplicationService {
     this.guard(notification);
     await this.outbox.append(notification);
     this.audit(actor, action, input);
-    await this.notifications.send(notification);
+    // The persisted outbox is authoritative; delivery failures must not undo the action.
+    try {
+      await this.notifications.send(notification);
+    } catch {
+      // Keep the row available for a later delivery attempt.
+    }
+  }
+
+  private async serializeNotificationAction<T>(key: string, action: () => Promise<T>): Promise<T> {
+    const previous = this.notificationActions.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    this.notificationActions.set(key, current);
+    await previous;
+    try {
+      return await action();
+    } finally {
+      release();
+      if (this.notificationActions.get(key) === current) this.notificationActions.delete(key);
+    }
   }
 
   private audit(actor: Actor, action: AuditEvent["action"], input: ActionInput): void {

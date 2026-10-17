@@ -90,6 +90,48 @@ function service() {
 }
 
 describe("outbound notification outbox", () => {
+  it("allows a failed outbox write to be retried without losing or duplicating notifications", async () => {
+    const outbox = createMemoryNotificationOutbox();
+    const append = vi.spyOn(outbox, "append").mockRejectedValueOnce(new Error("database unavailable"));
+    const app = new ApplicationService({ clock: () => NOW, sessionSecret: SESSION_SECRET, outbox });
+    const created = app.createDraft(session("candidate"), draftInput());
+    app.approveDraft(session("candidate"), created.draftId, action("confirmo", "approve-retry"));
+    const submit = () => app.submit(session("candidate"), created.draftId, action("envío", "submit-retry"));
+    await expect(submit()).rejects.toThrow("database unavailable");
+    const submitted = await submit();
+    expect((await submit()).replayed).toBe(true);
+    expect(await outbox.list("trace-notify")).toHaveLength(1);
+    append.mockRejectedValueOnce(new Error("database unavailable"));
+    const decide = () => app.decideInterview(session("employer"), submitted.submissionId, {
+      ...action("no avanzamos", "decision-retry"), decision: "rejected",
+    });
+    await expect(decide()).rejects.toThrow("database unavailable");
+    expect((await decide()).interview).toBe("rejected");
+    expect(await outbox.list("trace-notify")).toHaveLength(2);
+    const audit = app.auditTrail(session("candidate"), "trace-notify");
+    expect(audit.filter((event) => event.action === "submission")).toHaveLength(1);
+    expect(audit.filter((event) => event.action === "rejection")).toHaveLength(1);
+  });
+
+  it("keeps committed outbox actions replayable when the sender is unavailable", async () => {
+    const send = vi.fn().mockRejectedValue(new Error("sender unavailable"));
+    const app = new ApplicationService({ clock: () => NOW, sessionSecret: SESSION_SECRET, notifications: { send } });
+    const created = app.createDraft(session("candidate"), draftInput());
+    app.approveDraft(session("candidate"), created.draftId, action("confirmo", "approve-sender"));
+    const submit = () => app.submit(session("candidate"), created.draftId, action("envío", "submit-sender"));
+    const [submitted, replay] = await Promise.all([submit(), submit()]);
+    expect(submitted.replayed).toBe(false);
+    expect(replay.replayed).toBe(true);
+    expect(await app.outboundNotifications(session("candidate"), "trace-notify")).toHaveLength(1);
+    const decide = () => app.decideInterview(session("employer"), submitted.submissionId, {
+      ...action("no avanzamos", "decision-sender"), decision: "rejected",
+    });
+    const decisions = await Promise.allSettled([decide(), decide()]);
+    expect(decisions.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+    expect(await app.outboundNotifications(session("candidate"), "trace-notify")).toHaveLength(2);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it("writes one employer notification and one submission audit event when a draft is submitted", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const app = service();
