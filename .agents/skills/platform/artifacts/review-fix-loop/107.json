@@ -2,9 +2,9 @@
   "status": "blocked",
   "pr": 107,
   "fixedPoint": "main",
-  "passes": 3,
+  "passes": 4,
   "completed": ["Atomic per-candidate uniqueness constraint", "queued-only limit semantics", "redacted worker context logging", "terminal worker failure observation"],
-  "remaining": ["Global queued limit is not atomic across concurrent SQL enqueues", "metrics are not exported or fully maintained", "alert windows and dedicated metrics/redaction tests are missing"],
-  "blocker": "The same SQL admission race, incomplete metric export/maintenance, unenforced alert windows, and missing observability tests persisted for three review passes.",
+  "remaining": ["metrics are process-local rather than durable across instances", "duration excludes failure and retry paths", "dedicated metrics endpoint and duration coverage is incomplete"],
+  "blocker": "The remaining findings require a durable metrics aggregation design and a clarified duration metric contract; repeating local patches would not resolve the architectural gap.",
   "nextConsumer": "implement-review-fixes"
 }
