@@ -2,6 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import type { IntakeResult, IntakeSourceKind } from '@puente/domain';
+import { Button } from './ui/button';
+import { Card } from './ui/card';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 
 type IntakeKind = IntakeSourceKind;
 
@@ -122,7 +126,7 @@ export function IntakeForm() {
   }
 
   return (
-    <section className="card" aria-labelledby="intake-heading">
+    <Card className="mb-5 p-5" role="region" aria-labelledby="intake-heading">
       <h2 id="intake-heading">Captura de tu perfil</h2>
       <form onSubmit={onSubmit} noValidate>
         <div className="field">
@@ -155,7 +159,7 @@ export function IntakeForm() {
             {kind === 'image' ? (
               <div className="field">
                 <label htmlFor="intake-alt">Descripción de la imagen (opcional)</label>
-                <textarea
+                  <Textarea
                   id="intake-alt"
                   value={altText}
                   onChange={(event) => setAltText(event.target.value)}
@@ -169,7 +173,7 @@ export function IntakeForm() {
             <label htmlFor="intake-text">
               {kind === 'audio_transcript' ? 'Transcripción' : 'Texto del CV o experiencia'}
             </label>
-            <textarea
+            <Textarea
               id="intake-text"
               value={text}
               onChange={(event) => setText(event.target.value)}
@@ -180,7 +184,7 @@ export function IntakeForm() {
 
         <div className="field">
           <label htmlFor="intake-roles">Puestos objetivo (opcional, separados por coma)</label>
-          <input
+          <Input
             id="intake-roles"
             type="text"
             value={targetRoles}
@@ -189,9 +193,9 @@ export function IntakeForm() {
           />
         </div>
 
-        <button type="submit" disabled={status.loading}>
+        <Button type="submit" disabled={status.loading}>
           {status.loading ? 'Procesando…' : 'Analizar mi perfil'}
-        </button>
+        </Button>
       </form>
 
       <div aria-live="polite" role="status">
@@ -203,7 +207,7 @@ export function IntakeForm() {
       </div>
 
       {result ? <IntakeResultView result={result} /> : null}
-    </section>
+    </Card>
   );
 }
 

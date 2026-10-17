@@ -15,7 +15,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const profile = await readCandidateProfile(candidateId);
     return profile ? NextResponse.json(profile) : NextResponse.json({ error: 'not_found' }, { status: 404 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'persistence_unavailable' }, { status: 503 });
   }
 }
@@ -42,7 +42,7 @@ export async function POST(request: Request): Promise<Response> {
     const previous = profileStore.get(profile.candidate_id);
     try {
       await persistCandidateProfile(profile);
-    } catch (error) {
+    } catch {
       if (previous) profileStore.save(previous);
       else profileStore.delete(profile.candidate_id);
       return NextResponse.json({ error: 'persistence_unavailable' }, { status: 503 });

@@ -14,6 +14,9 @@ import {
 import type { Roadmap, TrainingGap } from '@puente/training';
 import type { SavedSearchView } from '../lib/saved-searches-store';
 import type { PreferencesDraft } from '../lib/preferences';
+import { Button } from './ui/button';
+import { Card } from './ui/card';
+import { Input } from './ui/input';
 
 const DAY_LABELS: Array<{ value: number; label: string }> = [
   { value: 1, label: 'Lun' },
@@ -226,7 +229,7 @@ export function ExplorationDashboard() {
   }
 
   return (
-    <section className="card" aria-labelledby="exploration-heading">
+    <Card className="mb-5 p-5" role="region" aria-labelledby="exploration-heading">
       <h2 id="exploration-heading">Preferencias y exploración de vacantes</h2>
       <p className="hint">
         Estas preferencias las declaras tú: el sistema no las infiere con un modelo. Se guardan como un
@@ -387,9 +390,9 @@ export function ExplorationDashboard() {
           </div>
         </fieldset>
 
-        <button type="submit" disabled={status.loading}>
+        <Button type="submit" disabled={status.loading}>
           {status.loading ? 'Buscando…' : 'Guardar y buscar vacantes'}
-        </button>
+        </Button>
       </form>
 
       <div aria-live="polite" role="status">
@@ -414,7 +417,7 @@ export function ExplorationDashboard() {
           message={savedMessage}
         />
       ) : null}
-    </section>
+      </Card>
   );
 }
 
@@ -661,7 +664,7 @@ function SavedSearchesPanel({
       <div className="field-row">
         <div className="field">
           <label htmlFor="search-label">Nombre de la búsqueda</label>
-          <input
+          <Input
             id="search-label"
             type="text"
             value={searchLabel}
@@ -669,12 +672,12 @@ function SavedSearchesPanel({
             placeholder="Atención al cliente en Panamá"
           />
         </div>
-        <button type="button" onClick={onSave} disabled={searchLabel.trim().length === 0}>
-          Guardar búsqueda
-        </button>
-        <button type="button" onClick={onDelete} className="danger">
-          Eliminar mis datos
-        </button>
+          <Button type="button" onClick={onSave} disabled={searchLabel.trim().length === 0}>
+            Guardar búsqueda
+          </Button>
+          <Button type="button" onClick={onDelete} variant="destructive">
+            Eliminar mis datos
+          </Button>
       </div>
       <div aria-live="polite" role="status">
         {message ? <p className="hint">{message}</p> : null}
