@@ -32,7 +32,6 @@ export interface WorkflowServices {
   router: ModelRouter;
   /** Optional validated matching seam for the market-and-matching step. */
   matching?: MatchingService;
-  matchingInput?: (carrier: Carrier) => CandidateNominationInput | Promise<CandidateNominationInput>;
   clock: () => string;
   envelopes: AgentEnvelope[];
   emit?: (event: WorkflowStreamEvent) => void;
@@ -193,9 +192,7 @@ export async function runAgent(
   let matchingActive = false;
   try {
   const suppliedInput = agent === "market_and_matching"
-    ? services.matchingInput
-      ? await services.matchingInput(carrier)
-      : carrier.matchingInput
+    ? carrier.matchingInput
     : undefined;
   if (agent === "market_and_matching" && services.matching && suppliedInput) {
     matchingActive = true;

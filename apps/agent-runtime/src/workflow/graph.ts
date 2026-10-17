@@ -11,7 +11,6 @@ import type { GuardrailDecision } from "./guardrails";
 import {
   createMatchingService,
   matchingConfigFromEnv,
-  type CandidateNominationInput,
   type MatchingEnv,
   type MatchingService,
 } from "../matching";
@@ -51,7 +50,6 @@ export interface WorkflowDependencies {
   langfuse?: LangfuseClient;
   /** Matching service used when the caller supplies validated matching input. */
   matching?: MatchingService;
-  matchingInput?: (carrier: Carrier) => CandidateNominationInput | Promise<CandidateNominationInput>;
   matchingEnv?: MatchingEnv;
 }
 
@@ -87,7 +85,6 @@ export class WorkflowRuntime {
   private readonly clock: () => string;
   private readonly langfuse?: LangfuseClient;
   private readonly matching?: MatchingService;
-  private readonly matchingInput?: WorkflowDependencies["matchingInput"];
   private readonly active = new Map<string, WorkflowServices>();
   private readonly cache = new Map<string, WorkflowResult>();
   private readonly workflow: ReturnType<WorkflowRuntime["build"]>;
@@ -98,7 +95,6 @@ export class WorkflowRuntime {
     this.matching = deps.matching ?? createMatchingService(
       matchingConfigFromEnv(deps.matchingEnv ?? (process.env as MatchingEnv)),
     );
-    this.matchingInput = deps.matchingInput;
     this.router = new ModelRouter(CAPABILITY_CHAINS, deps.complete);
     if (deps.catalog) this.router.preflight(deps.catalog);
     this.workflow = this.build();
@@ -154,7 +150,6 @@ export class WorkflowRuntime {
       traces: this.traces,
       router: this.router,
       ...(this.matching ? { matching: this.matching } : {}),
-      ...(this.matchingInput ? { matchingInput: this.matchingInput } : {}),
       clock: this.clock,
       envelopes: [],
       emit: options.onEvent,

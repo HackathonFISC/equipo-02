@@ -124,19 +124,29 @@ export class MatchingService {
         const schedule = context.schedule as Record<string, unknown> | undefined;
         if (
           !schedule ||
-          !Array.isArray(schedule.days) ||
-          !Number.isFinite(schedule.startMinute) ||
-          !Number.isFinite(schedule.endMinute) ||
-          !Number.isFinite(schedule.weeklyHours)
+          !this.validDays(schedule.days) ||
+          !this.validMinute(schedule.startMinute) ||
+          !this.validMinute(schedule.endMinute) ||
+          typeof schedule.weeklyHours !== "number" ||
+          !Number.isFinite(schedule.weeklyHours) ||
+          schedule.weeklyHours <= 0 ||
+          schedule.startMinute >= schedule.endMinute
         ) {
           throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has an invalid schedule context.`);
         }
         for (const field of ["salaryMinUsd", "salaryMaxUsd", "capacity"]) {
-          if (typeof context[field] !== "number" || !Number.isFinite(context[field])) {
+          if (
+            typeof context[field] !== "number" ||
+            !Number.isFinite(context[field]) ||
+            context[field] < 0
+          ) {
             throw new MatchingInputError(
               `Vacancy ${vacancy.document.vacancyId} has an invalid ${field} context.`,
             );
           }
+        }
+        if (Number(context.salaryMaxUsd) < Number(context.salaryMinUsd)) {
+          throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has an invalid salary range.`);
         }
       }
     } catch (error) {
@@ -147,19 +157,33 @@ export class MatchingService {
     }
   }
 
+  private validDays(value: unknown): value is number[] {
+    return Array.isArray(value) && value.every((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+  }
+
+  private validMinute(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 1440;
+  }
+
   private validateCandidateContext(context: CandidateMatchContext): void {
     if (
       !context ||
       typeof context !== "object" ||
       !context.home ||
+      typeof context.home !== "object" ||
+      typeof context.home.country !== "string" ||
       !context.availability ||
       !context.transport ||
-      !Array.isArray(context.availability.days) ||
-      !Number.isFinite(context.availability.startMinute) ||
-      !Number.isFinite(context.availability.endMinute) ||
+      !this.validDays(context.availability.days) ||
+      !this.validMinute(context.availability.startMinute) ||
+      !this.validMinute(context.availability.endMinute) ||
+      context.availability.startMinute >= context.availability.endMinute ||
+      typeof context.availability.weeklyHours !== "number" ||
       !Number.isFinite(context.availability.weeklyHours) ||
+      context.availability.weeklyHours <= 0 ||
       typeof context.transport.hasVehicle !== "boolean" ||
       !Number.isFinite(context.transport.maxCommuteMinutes) ||
+      context.transport.maxCommuteMinutes < 0 ||
       typeof context.expectedSalaryUsd !== "number" ||
       !Number.isFinite(context.expectedSalaryUsd)
     ) {
@@ -193,7 +217,16 @@ export class MatchingService {
         skipped.push(vacancy.document.vacancyId);
         continue;
       }
-      this.assertFresh(vacancy, now);
+      try {
+        this.assertFresh(vacancy, now);
+      } catch (error) {
+        if (error instanceof MatchingInputError && error.message.includes("is stale:")) {
+          skipped.push(vacancy.document.vacancyId);
+          warnings.push(error.message);
+          continue;
+        }
+        throw error;
+      }
       const freshnessWarning = this.freshnessWarning(vacancy, now);
       if (freshnessWarning) warnings.push(freshnessWarning);
       const geocode = await this.requireGeocode(
