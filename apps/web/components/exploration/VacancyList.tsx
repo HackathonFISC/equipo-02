@@ -5,7 +5,7 @@ import {
   type ExplorationResult,
 } from '@puente/catalog';
 import { DiscardSummary } from './DiscardSummary';
-import { money } from './utils';
+import { money, orderMatchesByDecision } from './utils';
 import type { MatchDecision } from '@puente/solver';
 import { Progress } from '../ui/progress';
 
@@ -36,7 +36,7 @@ export function VacancyList({ result, decisions = [], decisionsLoading = false }
             </tr>
           </thead>
           <tbody>
-            {[...result.matches].sort((a, b) => (decisions.find((d) => d.vacancyId === b.vacancy.jobId)?.score ?? -1) - (decisions.find((d) => d.vacancyId === a.vacancy.jobId)?.score ?? -1)).map((match) => (
+            {orderMatchesByDecision(result.matches, decisions, decisionsLoading).map((match) => (
               <tr key={match.vacancy.jobId}>
                 <td>
                   <strong>{match.vacancy.title}</strong>

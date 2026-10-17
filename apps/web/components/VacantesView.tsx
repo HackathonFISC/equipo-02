@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Skeleton } from './ui/skeleton';
 import { Progress } from './ui/progress';
+import { orderMatchesByDecision } from './exploration/utils';
 
 export interface VacantesViewProps {
   result?: ExplorationResult | null;
@@ -28,7 +29,7 @@ export function VacantesView({ result = null, loading = false, decisions = [], d
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const matches = result?.matches ?? [];
-  const orderedMatches = [...matches].sort((a, b) => (decisions.find((d) => d.vacancyId === b.vacancy.jobId)?.score ?? -1) - (decisions.find((d) => d.vacancyId === a.vacancy.jobId)?.score ?? -1));
+  const orderedMatches = orderMatchesByDecision(matches, decisions, decisionsLoading);
   const selected = orderedMatches.find((match) => match.vacancy.jobId === selectedId) ?? null;
 
   useEffect(() => {
