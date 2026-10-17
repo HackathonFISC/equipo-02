@@ -37,8 +37,8 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       if (view) {
         setNewMatches(view.newSinceLastVisit);
         setLoadedResult({ matches: view.matches, summary: view.summary, excluded: [], noMatch: null } as unknown as ExplorationResult);
-        fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`, { method: 'PUT' }).catch(() => undefined);
       }
+      fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`, { method: 'PUT' }).catch(() => undefined);
     }).catch(() => undefined);
   }, [result]);
 
