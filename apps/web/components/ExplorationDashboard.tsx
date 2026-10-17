@@ -314,13 +314,13 @@ export function ExplorationDashboard() {
           <legend>Días disponibles</legend>
           <div className="checkbox-group">
             {DAY_LABELS.map((day) => (
-              <label key={day.value}>
+              <Label key={day.value}>
                 <Checkbox
                   checked={days.includes(day.value)}
                   onCheckedChange={() => toggle(days, day.value, setDays)}
                 />
                 {day.label}
-              </label>
+              </Label>
             ))}
           </div>
         </fieldset>
@@ -351,13 +351,13 @@ export function ExplorationDashboard() {
           <legend>Tipo de contrato</legend>
           <div className="checkbox-group">
             {CONTRACT_OPTIONS.map((option) => (
-              <label key={option.value}>
+              <Label key={option.value}>
                 <Checkbox
                   checked={contracts.includes(option.value)}
                   onCheckedChange={() => toggle(contracts, option.value, setContracts)}
                 />
                 {option.label}
-              </label>
+              </Label>
             ))}
           </div>
         </fieldset>
@@ -366,13 +366,13 @@ export function ExplorationDashboard() {
           <legend>Modos de transporte</legend>
           <div className="checkbox-group">
             {TRANSPORT_OPTIONS.map((option) => (
-              <label key={option.value}>
+              <Label key={option.value}>
                 <Checkbox
                   checked={modes.includes(option.value)}
                   onCheckedChange={() => toggle(modes, option.value, setModes)}
                 />
                 {option.label}
-              </label>
+              </Label>
             ))}
           </div>
         </fieldset>
@@ -380,14 +380,14 @@ export function ExplorationDashboard() {
         <fieldset className="field">
           <legend>Disposición</legend>
           <div className="checkbox-group">
-            <label>
+            <Label>
               <Checkbox checked={willingTrain} onCheckedChange={(checked) => setWillingTrain(checked === true)} />
               Dispuesto a tomar cursos
-            </label>
-            <label>
+            </Label>
+            <Label>
               <Checkbox checked={willingIntern} onCheckedChange={(checked) => setWillingIntern(checked === true)} />
               Dispuesto a hacer pasantías
-            </label>
+            </Label>
           </div>
         </fieldset>
 
