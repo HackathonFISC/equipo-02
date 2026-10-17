@@ -45,6 +45,7 @@ async function settle(
   durationSeconds?: number,
 ): Promise<ChatJobOutcome> {
   if (error.retryable && job.attempts < job.maxAttempts) {
+    if (error.code !== 'session_version_pending') observeChatJob('worker_error');
     const backoffMs = ([1000, 5000, 30000][Math.min(job.attempts - 1, 2)] ?? 30000) + Math.floor(Math.random() * 250);
     await jobs.release(job.jobId, backoffMs, durationSeconds, error.code);
     log({ event: 'chat_job_retry', jobId: job.jobId, attempts: job.attempts, code: error.code, backoffMs });

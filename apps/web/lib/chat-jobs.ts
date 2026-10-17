@@ -407,7 +407,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1`,
         [jobId, delayMs],
       );
-      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 in ('chat_execution_retryable', 'provider_timeout') then 1 else 0 end, provider_timeouts = provider_timeouts + case when $2 = 'provider_timeout' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, errorCode ?? null]);
+      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 <> 'session_version_pending' then 1 else 0 end, provider_timeouts = provider_timeouts + case when $2 = 'provider_timeout' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, errorCode ?? null]);
       await refreshMetrics();
     },
 
