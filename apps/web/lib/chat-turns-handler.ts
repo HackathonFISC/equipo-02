@@ -86,8 +86,9 @@ export async function enqueueChatTurn(
 
   const store = deps.store ?? getChatJobStore();
   let job: ChatJob;
+  let created = true;
   try {
-    ({ job } = await store.enqueue({
+    ({ job, created } = await store.enqueue({
       candidateId,
       idempotencyKey: key,
       sessionVersion: parsed.sessionVersion,
@@ -101,6 +102,20 @@ export async function enqueueChatTurn(
       requestId,
       retryable: true,
     });
+  }
+
+  if (!created && job.status === 'succeeded') {
+    return {
+      status: 200,
+      body: {
+        jobId: job.jobId,
+        status: job.status,
+        statusUrl: `/api/v1/chat/turns/${encodeURIComponent(job.jobId)}`,
+        requestId: job.requestId,
+        sessionVersion: job.sessionVersion,
+        result: job.result ?? null,
+      },
+    };
   }
 
   return {

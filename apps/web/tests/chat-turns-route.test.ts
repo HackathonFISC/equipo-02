@@ -119,6 +119,21 @@ describe('POST /api/v1/chat/turns', () => {
     expect(second.jobId).toBe(first.jobId);
     expect((await store.findByIdempotencyKey(OWNER, 'key-1'))?.jobId).toBe(first.jobId);
   });
+
+  it('returns the completed result when a succeeded job is replayed', async () => {
+    const firstResponse = await post(validBody, { userId: 'u', idempotencyKey: 'key-result' });
+    const first = (await firstResponse.json()) as { jobId: string };
+    await store.claimNext({ leaseOwner: 'w1', leaseMs: 1000 });
+    await store.succeed(first.jobId, { reply: 'completado', phase: 'profile' });
+
+    const replay = await post(validBody, { userId: 'u', idempotencyKey: 'key-result' });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toMatchObject({
+      jobId: first.jobId,
+      status: 'succeeded',
+      result: { reply: 'completado', phase: 'profile' },
+    });
+  });
 });
 
 describe('GET /api/v1/chat/turns/{jobId}', () => {

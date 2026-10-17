@@ -67,7 +67,8 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
   const job = await jobs.claimNext({ leaseOwner, leaseMs: deps.leaseMs ?? DEFAULT_LEASE_MS, now: now() });
   if (!job) return { outcome: 'idle' };
 
-  // Ordered per candidate by session version: a stale action is terminal and never applied twice.
+  // Ordered per candidate by session version: a genuinely stale action is
+  // terminal, while a future version waits for its earlier turn.
   let currentVersion: number;
   try {
     currentVersion = (await sessionStore.get(job.candidateId))?.version ?? 0;
@@ -79,7 +80,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       log,
     );
   }
-  if (currentVersion !== job.sessionVersion) {
+  if (currentVersion > job.sessionVersion) {
     await jobs.fail(job.jobId, {
       code: 'session_version_conflict',
       message: 'The chat session changed before this turn was applied.',
@@ -87,6 +88,14 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
     });
     log({ event: 'chat_job_failed', jobId: job.jobId, code: 'session_version_conflict' });
     return { outcome: 'failed', jobId: job.jobId };
+  }
+  if (currentVersion < job.sessionVersion) {
+    return settle(
+      jobs,
+      job,
+      { code: 'session_version_pending', message: 'An earlier chat turn must complete first.', retryable: true },
+      log,
+    );
   }
 
   const context = deps.contextFor ? await deps.contextFor(job.candidateId) : deps.context;

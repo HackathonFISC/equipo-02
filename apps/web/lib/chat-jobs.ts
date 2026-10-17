@@ -82,6 +82,8 @@ export interface ChatJobStore {
 export function createInMemoryChatJobStore(): ChatJobStore {
   const jobs = new Map<string, ChatJob>();
   const idempotency = new Map<string, string>();
+  const admissionOrder = new Map<string, number>();
+  let nextAdmissionOrder = 0;
   const key = (candidateId: string, idempotencyKey: string) => `${candidateId}\u0000${idempotencyKey}`;
   const clone = <T>(value: T): T => structuredClone(value);
 
@@ -112,6 +114,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
         updatedAt: now,
       };
       jobs.set(job.jobId, job);
+      admissionOrder.set(job.jobId, nextAdmissionOrder++);
       idempotency.set(key(job.candidateId, job.idempotencyKey), job.jobId);
       return { job: clone(job), created: true };
     },
@@ -129,8 +132,20 @@ export function createInMemoryChatJobStore(): ChatJobStore {
 
     async claimNext({ leaseOwner, leaseMs, now }) {
       const at = now ?? Date.now();
-      // Map iteration is insertion order, so this is FIFO admission.
-      const next = [...jobs.values()].find((job) => claimable(job, at));
+      // Admit only the oldest unfinished job for a candidate. This prevents a
+      // later session version from running while an earlier turn is in flight.
+      const next = [...jobs.values()].find((job) => {
+        if (!claimable(job, at)) return false;
+        return ![...jobs.values()].some(
+          (earlier) =>
+            earlier.jobId !== job.jobId &&
+            earlier.candidateId === job.candidateId &&
+            (earlier.status === 'queued' || earlier.status === 'running') &&
+            (earlier.sessionVersion < job.sessionVersion ||
+              (earlier.sessionVersion === job.sessionVersion &&
+                (admissionOrder.get(earlier.jobId) ?? 0) < (admissionOrder.get(job.jobId) ?? 0))),
+        );
+      });
       if (!next) return undefined;
       next.status = 'running';
       next.attempts += 1;
@@ -178,6 +193,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       for (const job of [...jobs.values()]) {
         if (job.candidateId !== candidateId) continue;
         jobs.delete(job.jobId);
+        admissionOrder.delete(job.jobId);
         idempotency.delete(key(job.candidateId, job.idempotencyKey));
       }
     },
@@ -280,9 +296,18 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
              started_at = coalesce(started_at, now()),
              updated_at = now()
          where job_id = (
-           select job_id from chat_jobs
-           where status = 'queued' or (status = 'running' and lease_expires_at < now())
-           order by created_at
+           select candidate_job.job_id from chat_jobs candidate_job
+           where (candidate_job.status = 'queued' or (candidate_job.status = 'running' and candidate_job.lease_expires_at < now()))
+             and not exists (
+               select 1 from chat_jobs earlier_job
+               where earlier_job.candidate_id = candidate_job.candidate_id
+                 and (earlier_job.status = 'queued' or earlier_job.status = 'running')
+                 and (earlier_job.session_version < candidate_job.session_version
+                   or (earlier_job.session_version = candidate_job.session_version
+                     and (earlier_job.created_at < candidate_job.created_at
+                       or (earlier_job.created_at = candidate_job.created_at and earlier_job.job_id < candidate_job.job_id))))
+             )
+           order by candidate_job.session_version, candidate_job.created_at, candidate_job.job_id
            for update skip locked
            limit 1
          )

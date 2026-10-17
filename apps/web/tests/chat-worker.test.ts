@@ -111,6 +111,29 @@ describe('processOneChatJob', () => {
     expect((await jobs.get(job.jobId))?.error?.code).toBe('session_version_conflict');
   });
 
+  it('keeps a future session version queued until the earlier turn completes', async () => {
+    const jobs = createInMemoryChatJobStore();
+    const sessions = createInMemoryChatSessionStore();
+    const first = await enqueueJob(jobs, { idempotencyKey: 'key-first', sessionVersion: 0 });
+    const later = await enqueueJob(jobs, { idempotencyKey: 'key-later', sessionVersion: 1 });
+    const firstClaim = await jobs.claimNext({ leaseOwner: 'w1', leaseMs: 1000, now: 1000 });
+    expect(firstClaim?.jobId).toBe(first.job.jobId);
+
+    const beforeCommit = await processOneChatJob({ jobs, sessionStore: sessions, chat: fakeChat(), now: () => 1000 });
+    expect(beforeCommit.outcome).toBe('idle');
+    expect((await jobs.get(later.job.jobId))?.status).toBe('queued');
+
+    await jobs.release(first.job.jobId);
+    await processOneChatJob({ jobs, sessionStore: sessions, chat: fakeChat(), now: () => 2000 });
+    const afterFirst = await sessions.get(CANDIDATE);
+    expect(afterFirst?.version).toBe(1);
+
+    const second = await processOneChatJob({ jobs, sessionStore: sessions, chat: fakeChat(), now: () => 3000 });
+    expect(second.outcome).toBe('succeeded');
+    expect(second.jobId).toBe(later.job.jobId);
+    expect((await jobs.get(later.job.jobId))?.status).toBe('succeeded');
+  });
+
   it('retries a transient failure and makes it terminal after max attempts', async () => {
     const jobs = createInMemoryChatJobStore();
     const unavailable = {
