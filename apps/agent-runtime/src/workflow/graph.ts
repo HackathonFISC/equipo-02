@@ -8,6 +8,7 @@ import {
 import { runAgent, type WorkflowServices, type WorkflowStreamEvent } from "./agents";
 import { assertCarrier, carrierSchema, type Carrier } from "./carrier";
 import type { GuardrailDecision } from "./guardrails";
+import type { CandidateNominationInput, MatchingService } from "../matching";
 import { CAPABILITY_CHAINS, ModelRouter, type ModelInvoke } from "./models";
 import {
   AppendOnlyAuditLog,
@@ -42,6 +43,9 @@ export interface WorkflowDependencies {
   catalog?: readonly string[];
   clock?: () => string;
   langfuse?: LangfuseClient;
+  /** Matching service used when the caller supplies validated matching input. */
+  matching?: MatchingService;
+  matchingInput?: (carrier: Carrier) => CandidateNominationInput | Promise<CandidateNominationInput>;
 }
 
 export interface WorkflowRunOptions {
@@ -74,6 +78,8 @@ export class WorkflowRuntime {
   private readonly router: ModelRouter;
   private readonly clock: () => string;
   private readonly langfuse?: LangfuseClient;
+  private readonly matching?: MatchingService;
+  private readonly matchingInput?: WorkflowDependencies["matchingInput"];
   private readonly active = new Map<string, WorkflowServices>();
   private readonly cache = new Map<string, WorkflowResult>();
   private readonly workflow: ReturnType<WorkflowRuntime["build"]>;
@@ -81,6 +87,8 @@ export class WorkflowRuntime {
   constructor(deps: WorkflowDependencies) {
     this.clock = deps.clock ?? (() => new Date().toISOString());
     this.langfuse = deps.langfuse;
+    this.matching = deps.matching;
+    this.matchingInput = deps.matchingInput;
     this.router = new ModelRouter(CAPABILITY_CHAINS, deps.complete);
     if (deps.catalog) this.router.preflight(deps.catalog);
     this.workflow = this.build();
@@ -135,6 +143,8 @@ export class WorkflowRuntime {
       dql: this.dql,
       traces: this.traces,
       router: this.router,
+      ...(this.matching ? { matching: this.matching } : {}),
+      ...(this.matchingInput ? { matchingInput: this.matchingInput } : {}),
       clock: this.clock,
       envelopes: [],
       emit: options.onEvent,

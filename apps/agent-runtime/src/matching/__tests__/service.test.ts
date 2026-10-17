@@ -15,7 +15,11 @@ import {
 
 function offlineService(): MatchingService {
   const config = matchingConfigFromEnv({});
-  return new MatchingService({ routing: config.routing, geocoding: config.geocoding });
+  return new MatchingService({
+    routing: config.routing,
+    geocoding: config.geocoding,
+    warnings: config.warnings,
+  });
 }
 
 describe("MatchingService.evaluatePair", () => {
@@ -65,6 +69,25 @@ describe("MatchingService.evaluatePair", () => {
         { now },
       ),
     ).rejects.toMatchObject({ code: "matching_input" });
+  });
+
+  it("rejects vacancies older than the automatic recommendation limit", async () => {
+    const config = matchingConfigFromEnv({});
+    const service = new MatchingService({ routing: config.routing, geocoding: config.geocoding });
+    await expect(
+      service.evaluatePair(
+        candidateProfile(),
+        CANDIDATE_CONTEXT,
+        {
+          document: await objectiveDocument(),
+          context: {
+            ...VACANCY_CONTEXT,
+            capturedAt: "2026-10-10T12:00:00.000Z",
+          },
+        },
+        { now: () => new Date("2026-10-16T12:00:00.000Z") },
+      ),
+    ).rejects.toThrow("older than 72 hours");
   });
 });
 

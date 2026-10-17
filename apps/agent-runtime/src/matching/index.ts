@@ -35,6 +35,7 @@ export {
   createMatchingService,
   type CandidateNominationInput,
   type CandidateNominationResult,
+  type EvaluatedPairResult,
   type EvaluatePairOptions,
   type MatchingServiceDeps,
   type VacancyMatchInput,

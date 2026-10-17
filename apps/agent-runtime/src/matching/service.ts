@@ -17,7 +17,7 @@ import {
   type VacancyMatchContext,
 } from "./adapt";
 import { MatchingInputError } from "./errors";
-import type { GeocodingPort } from "./geocode";
+import type { GeocodeResult, GeocodingPort } from "./geocode";
 
 /**
  * The runtime → solver seam (issue #20).
@@ -48,7 +48,18 @@ export interface CandidateNominationResult {
   home: GeoPoint;
   /** Vacancy ids skipped because the vacancy is blocked. */
   skippedVacancyIds: string[];
+  geocoding: {
+    home: GeocodeResult;
+    vacancies: Record<string, GeocodeResult>;
+  };
+  warnings: string[];
   result: NominationResult;
+}
+
+export interface EvaluatedPairResult {
+  decision: MatchDecision;
+  geocoding: { home: GeocodeResult; vacancy: GeocodeResult };
+  warnings: string[];
 }
 
 export interface EvaluatePairOptions {
@@ -60,6 +71,8 @@ export interface EvaluatePairOptions {
 export interface MatchingServiceDeps {
   routing: RoutingPort;
   geocoding: GeocodingPort;
+  /** Runtime/provider warnings that must remain visible to callers. */
+  warnings?: readonly string[];
 }
 
 export class MatchingService {
@@ -67,37 +80,62 @@ export class MatchingService {
 
   /** Geocode the candidate's home location to the solver's `GeoPoint`. */
   async geocodeHome(context: CandidateMatchContext): Promise<GeoPoint> {
-    return this.requireGeocode(this.deps.geocoding.geocode(context.home), "candidate home");
+    return (await this.requireGeocode(this.deps.geocoding.geocode(context.home), "candidate home")).point;
   }
 
   private async requireGeocode(
     resultPromise: Promise<Awaited<ReturnType<GeocodingPort["geocode"]>>>,
     subject: string,
-  ): Promise<GeoPoint> {
+  ): Promise<GeocodeResult> {
     const result = await resultPromise;
     if (result.source === "default") {
       throw new MatchingInputError(`Unable to geocode ${subject}: no location matched.`);
     }
-    return result.point;
+    return result;
+  }
+
+  private assertFresh(vacancy: VacancyMatchInput, now: Date): void {
+    if (!vacancy.context.capturedAt) return;
+    const capturedAt = Date.parse(vacancy.context.capturedAt);
+    if (!Number.isFinite(capturedAt)) {
+      throw new MatchingInputError(`Vacancy ${vacancy.document.vacancyId} has invalid freshness metadata.`);
+    }
+    const maxAgeHours = vacancy.context.freshnessMaxAgeHours ?? 72;
+    if (now.getTime() - capturedAt > maxAgeHours * 60 * 60 * 1000) {
+      throw new MatchingInputError(
+        `Vacancy ${vacancy.document.vacancyId} is stale: older than ${maxAgeHours} hours.`,
+      );
+    }
   }
 
   private async vacancyInputs(
     vacancies: readonly VacancyMatchInput[],
-  ): Promise<{ inputs: ReturnType<typeof toSolverVacancy>[]; skipped: string[] }> {
+    now: Date,
+  ): Promise<{
+    inputs: ReturnType<typeof toSolverVacancy>[];
+    skipped: string[];
+    geocoding: Record<string, GeocodeResult>;
+    warnings: string[];
+  }> {
     const inputs = [];
     const skipped: string[] = [];
+    const geocoding: Record<string, GeocodeResult> = {};
+    const warnings: string[] = [];
     for (const vacancy of vacancies) {
       if (!isVacancyRankable(vacancy.document)) {
         skipped.push(vacancy.document.vacancyId);
         continue;
       }
-      const point = await this.requireGeocode(
+      this.assertFresh(vacancy, now);
+      const geocode = await this.requireGeocode(
         this.deps.geocoding.geocode(vacancy.document.location),
         `vacancy ${vacancy.document.vacancyId}`,
       );
-      inputs.push(toSolverVacancy(vacancy.document, vacancy.context, point));
+      geocoding[vacancy.document.vacancyId] = geocode;
+      if (geocode.fallbackReason) warnings.push(geocode.fallbackReason);
+      inputs.push(toSolverVacancy(vacancy.document, vacancy.context, geocode.point));
     }
-    return { inputs, skipped };
+    return { inputs, skipped, geocoding, warnings };
   }
 
   /**
@@ -108,9 +146,16 @@ export class MatchingService {
   async nominateForCandidate(
     input: CandidateNominationInput,
   ): Promise<CandidateNominationResult> {
-    const home = await this.geocodeHome(input.context);
-    const candidate = toSolverCandidate(input.profile, input.context, home);
-    const { inputs, skipped } = await this.vacancyInputs(input.vacancies);
+    const homeResult = await this.requireGeocode(
+      this.deps.geocoding.geocode(input.context.home),
+      "candidate home",
+    );
+    const candidate = toSolverCandidate(input.profile, input.context, homeResult.point);
+    const { inputs, skipped, geocoding, warnings } = await this.vacancyInputs(
+      input.vacancies,
+      input.now?.() ?? new Date(),
+    );
+    warnings.unshift(...(this.deps.warnings ?? []));
 
     if (inputs.length === 0) {
       throw new MatchingInputError(
@@ -126,7 +171,14 @@ export class MatchingService {
       ...(input.now ? { now: input.now } : {}),
     });
 
-    return { candidateId: candidate.candidateId, home, skippedVacancyIds: skipped, result };
+    return {
+      candidateId: candidate.candidateId,
+      home: homeResult.point,
+      skippedVacancyIds: skipped,
+      geocoding: { home: homeResult, vacancies: geocoding },
+      warnings,
+      result,
+    };
   }
 
   /** Evaluate a single candidate/vacancy pair without solving an assignment. */
@@ -136,25 +188,45 @@ export class MatchingService {
     vacancy: VacancyMatchInput,
     options: EvaluatePairOptions = {},
   ): Promise<MatchDecision> {
+    return (await this.evaluatePairWithMetadata(profile, context, vacancy, options)).decision;
+  }
+
+  async evaluatePairWithMetadata(
+    profile: CandidateProfile,
+    context: CandidateMatchContext,
+    vacancy: VacancyMatchInput,
+    options: EvaluatePairOptions = {},
+  ): Promise<EvaluatedPairResult> {
     if (!isVacancyRankable(vacancy.document)) {
       throw new MatchingInputError(
         `Vacancy ${vacancy.document.vacancyId} is blocked and cannot be evaluated.`,
       );
     }
-    const home = await this.geocodeHome(context);
-    const candidate = toSolverCandidate(profile, context, home);
-    const point = await this.requireGeocode(
+    this.assertFresh(vacancy, options.now?.() ?? new Date());
+    const homeResult = await this.requireGeocode(
+      this.deps.geocoding.geocode(context.home),
+      "candidate home",
+    );
+    const candidate = toSolverCandidate(profile, context, homeResult.point);
+    const vacancyResult = await this.requireGeocode(
       this.deps.geocoding.geocode(vacancy.document.location),
       `vacancy ${vacancy.document.vacancyId}`,
     );
-    const solverVacancy = toSolverVacancy(vacancy.document, vacancy.context, point);
+    const solverVacancy = toSolverVacancy(vacancy.document, vacancy.context, vacancyResult.point);
 
-    return evaluateMatch(candidate, solverVacancy, {
+    return {
+      decision: await evaluateMatch(candidate, solverVacancy, {
       routing: this.deps.routing,
       ...(options.peers ? { peers: options.peers } : {}),
       ...(options.approval ? { approval: options.approval } : {}),
       ...(options.now ? { now: options.now } : {}),
-    });
+      }),
+      geocoding: { home: homeResult, vacancy: vacancyResult },
+      warnings: [
+        ...(this.deps.warnings ?? []),
+        ...(vacancyResult.fallbackReason ? [vacancyResult.fallbackReason] : []),
+      ],
+    };
   }
 }
 

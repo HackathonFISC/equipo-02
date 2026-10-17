@@ -40,6 +40,10 @@ export interface VacancyMatchContext {
   capacity: number;
   /** Accessibility features the workplace provides (e.g. `wheelchair`). */
   accessibilityRequirements?: string[];
+  /** Source freshness used to prevent stale automatic recommendations. */
+  capturedAt?: string;
+  /** Maximum age in hours; defaults to the parent spec's 72-hour limit. */
+  freshnessMaxAgeHours?: number;
 }
 
 export interface CandidateMatchContext {
