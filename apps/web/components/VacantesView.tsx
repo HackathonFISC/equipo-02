@@ -22,12 +22,19 @@ const money = (min: number | null, max: number | null) => {
 export function VacantesView({ result = null, loading = false }: VacantesViewProps) {
   const [newMatches, setNewMatches] = useState<VacancyMatch[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveLabel, setSaveLabel] = useState('');
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const matches = result?.matches ?? [];
   const selected = matches.find((match) => match.vacancy.jobId === selectedId) ?? null;
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('save') === '1') {
+      const pending = window.sessionStorage.getItem('puente:pending-save');
+      if (pending) { setSaveLabel(JSON.parse(pending).label ?? ''); setSaveOpen(true); window.sessionStorage.removeItem('puente:pending-save'); }
+    }
     const candidateId = window.localStorage.getItem('puente:candidateId');
     if (!candidateId) return;
     fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`)
@@ -38,6 +45,19 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       })
       .catch(() => undefined);
   }, []);
+
+  async function saveSearch() {
+    const rawPreferences = window.localStorage.getItem('puente:preferences');
+    if (!rawPreferences) return;
+    const response = await fetch('/api/searches', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ label: saveLabel, preferences: JSON.parse(rawPreferences) }) });
+    if (response.status === 401) {
+      window.sessionStorage.setItem('puente:pending-save', JSON.stringify({ label: saveLabel }));
+      window.location.href = `/ingresar?next=${encodeURIComponent('/vacantes?save=1')}`;
+      return;
+    }
+    setSaveMessage(response.ok ? 'Búsqueda guardada.' : 'No se pudo guardar la búsqueda.');
+    if (response.ok) setSaveOpen(false);
+  }
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('v');
@@ -81,6 +101,9 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       <div><p className="eyebrow">Explora oportunidades</p><h1>Vacantes para ti</h1><p className="lead">Encontramos oportunidades que se ajustan a lo que buscas.</p></div>
       <span className="vacantes-count">{result?.summary.matched ?? 0} compatibles</span>
     </div>
+    <button type="button" onClick={() => setSaveOpen(true)}>Guardar esta búsqueda</button>
+    {saveOpen ? <div role="presentation" className="save-dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="save-search-title" className="save-dialog"><h2 id="save-search-title">Guardar esta búsqueda</h2><label htmlFor="vacantes-save-label">Nombre de la búsqueda</label><input id="vacantes-save-label" value={saveLabel} onChange={(event) => setSaveLabel(event.target.value)} /><button type="button" onClick={saveSearch} disabled={!saveLabel.trim()}>Guardar</button><button type="button" onClick={() => setSaveOpen(false)}>Cancelar</button></section></div> : null}
+    {saveMessage ? <p role="status">{saveMessage}</p> : null}
     {newMatches.length > 0 ? <section className="new-vacancies" aria-labelledby="new-vacancies-heading"><h2 id="new-vacancies-heading">Nuevas desde tu última visita</h2><div className="vacancy-grid">{newMatches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} />)}</div></section> : null}
     {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <Skeleton key={id} className="vacancy-skeleton" />)}</div> : <>
       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}

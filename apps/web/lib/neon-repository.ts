@@ -85,3 +85,14 @@ export async function readSavedSearches(candidateId: string): Promise<SavedSearc
   const rows = await database()`select search from candidate_saved_searches where candidate_id = ${candidateId} order by search_id`;
   return rows.map((row) => (row as { search: SavedSearch }).search);
 }
+
+export async function markCandidateVacancyVisit(candidateId: string, visitedAt = new Date().toISOString()): Promise<void> {
+  if (persistenceMode() === 'memory') return;
+  await database()`insert into candidate_vacancy_visits (candidate_id, visited_at) values (${candidateId}, ${visitedAt}::timestamptz) on conflict (candidate_id) do update set visited_at = excluded.visited_at`;
+}
+
+export async function readCandidateVacancyVisit(candidateId: string): Promise<string | undefined> {
+  if (persistenceMode() === 'memory') return undefined;
+  const rows = await database()`select visited_at from candidate_vacancy_visits where candidate_id = ${candidateId}`;
+  return (rows[0] as { visited_at?: string } | undefined)?.visited_at;
+}
