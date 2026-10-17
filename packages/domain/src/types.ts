@@ -417,6 +417,7 @@ export interface WorkflowRunRequest {
     role: ActorRole;
   };
   requestedTools: string[];
+  preferences?: CandidatePreferences;
   /** Optional validated matching payload consumed by agent-runtime's solver seam. */
   matchingInput?: unknown;
 }
@@ -438,6 +439,7 @@ export interface JobRequirements {
   vacancyId: string;
   title: string;
   employer: string | null;
+  employerOrgId?: string;
   source: VacancySource;
   capturedAt: string;
   locale: string;
