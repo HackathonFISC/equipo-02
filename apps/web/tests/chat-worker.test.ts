@@ -156,6 +156,50 @@ describe('processOneChatJob', () => {
     expect(stored?.error).toEqual({ code: 'persistence_unavailable', message: 'The chat session store is unavailable.', retryable: true });
   });
 
+  it('requeues a worker exception from context loading instead of stranding the lease', async () => {
+    const jobs = createInMemoryChatJobStore();
+    const sessions = createInMemoryChatSessionStore();
+    const { job } = await enqueueJob(jobs);
+
+    const outcome = await processOneChatJob({
+      jobs,
+      sessionStore: sessions,
+      contextFor: async () => {
+        throw new Error('database temporarily unavailable');
+      },
+    });
+
+    expect(outcome).toEqual({ outcome: 'retried', jobId: job.jobId });
+    expect((await jobs.get(job.jobId))?.status).toBe('queued');
+    expect((await jobs.get(job.jobId))?.leaseOwner).toBeUndefined();
+  });
+
+  it('requeues handler failures and records a safe terminal error after exhaustion', async () => {
+    const jobs = createInMemoryChatJobStore();
+    let reads = 0;
+    const sessions = {
+      get: async () => {
+        reads += 1;
+        if (reads % 2 === 1) return undefined;
+        throw new Error('unexpected handler failure');
+      },
+      save: async () => undefined,
+    };
+    const { job } = await enqueueJob(jobs);
+
+    expect((await processOneChatJob({ jobs, sessionStore: sessions, chat: fakeChat() })).outcome).toBe('retried');
+    expect((await processOneChatJob({ jobs, sessionStore: sessions, chat: fakeChat() })).outcome).toBe('retried');
+    expect((await processOneChatJob({ jobs, sessionStore: sessions, chat: fakeChat() })).outcome).toBe('failed');
+
+    const stored = await jobs.get(job.jobId);
+    expect(stored?.status).toBe('failed');
+    expect(stored?.error).toEqual({
+      code: 'chat_execution_failed',
+      message: 'The chat turn could not be completed.',
+      retryable: true,
+    });
+  });
+
   it('fails an invalid queued action terminally', async () => {
     const jobs = createInMemoryChatJobStore();
     const sessions = createInMemoryChatSessionStore();

@@ -52,6 +52,22 @@ async function settle(
   return { outcome: 'failed', jobId: job.jobId };
 }
 
+function executionFailure(cause: unknown): ChatJobError {
+  // Provider failures are deliberately reduced to a safe retryable error. The
+  // original cause must never reach the job row or the candidate-facing API.
+  const message = cause instanceof Error ? cause.message : '';
+  const retryable =
+    message === 'chat_timeout' ||
+    message === 'chat_failed' ||
+    message === 'persistence_unavailable' ||
+    /timeout|timed out|network|fetch|socket|reset|unavailable/i.test(message);
+  return {
+    code: retryable ? 'chat_execution_retryable' : 'chat_execution_failed',
+    message: retryable ? 'The chat provider could not complete the turn.' : 'The chat turn could not be completed.',
+    retryable,
+  };
+}
+
 /**
  * Claim one job with a lease and execute the existing chat seam. The job is
  * acknowledged (marked succeeded) only after `handleChatTurn` committed the
@@ -98,12 +114,29 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
     );
   }
 
-  const context = deps.contextFor ? await deps.contextFor(job.candidateId) : deps.context;
-  const { status, body } = await handleChatTurn(job.candidateId, job.payload, {
-    chat: deps.chat ?? createChatFnFromEnv(),
-    store: sessionStore,
-    context,
-  });
+  let context: CandidateContext | undefined;
+  try {
+    context = deps.contextFor ? await deps.contextFor(job.candidateId) : deps.context;
+  } catch {
+    return settle(
+      jobs,
+      job,
+      { code: 'persistence_unavailable', message: 'The chat session store is unavailable.', retryable: true },
+      log,
+    );
+  }
+
+  let status: number;
+  let body: unknown;
+  try {
+    ({ status, body } = await handleChatTurn(job.candidateId, job.payload, {
+      chat: deps.chat ?? createChatFnFromEnv(),
+      store: sessionStore,
+      context,
+    }));
+  } catch (cause) {
+    return settle(jobs, job, executionFailure(cause), log);
+  }
 
   if (status === 200) {
     await jobs.succeed(job.jobId, body);
