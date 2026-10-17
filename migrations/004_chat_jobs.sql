@@ -48,6 +48,8 @@ create table if not exists chat_queue_metrics (
   provider_timeouts bigint not null default 0,
   duration_seconds_total double precision not null default 0,
   duration_samples bigint not null default 0,
+  oldest_alert_since timestamptz,
+  error_alert_since timestamptz,
   updated_at timestamptz not null default now()
 );
 insert into chat_queue_metrics (metric_key) values ('chat') on conflict (metric_key) do nothing;

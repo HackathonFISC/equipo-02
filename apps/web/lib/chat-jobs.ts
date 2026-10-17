@@ -85,7 +85,7 @@ export interface ChatJobStore {
   succeed(jobId: string, result: unknown, leaseOwner?: string, durationSeconds?: number): Promise<void>;
   fail(jobId: string, error: ChatJobError, leaseOwner?: string, durationSeconds?: number): Promise<void>;
   /** Release a lease without completing, so a transient failure can be retried. */
-  release(jobId: string, delayMs?: number): Promise<void>;
+  release(jobId: string, delayMs?: number, durationSeconds?: number): Promise<void>;
   deleteByCandidate(candidateId: string): Promise<void>;
 }
 
@@ -197,7 +197,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       job.updatedAt = job.finishedAt;
     },
 
-    async release(jobId, _delayMs = 0) {
+    async release(jobId, _delayMs = 0, _durationSeconds) {
       const job = jobs.get(jobId);
       if (!job) return;
       job.status = 'queued';
@@ -265,6 +265,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
     const result = await query("select count(*)::int as depth, coalesce(extract(epoch from (now() - min(created_at))), 0)::int as oldest from chat_jobs where status = 'queued'", []);
     const row = result.rows[0];
     observeChatQueue({ queueDepth: Number(row?.depth ?? 0), oldestJobAgeSeconds: Number(row?.oldest ?? 0) });
+    await query("update chat_queue_metrics set oldest_alert_since = case when coalesce($1, 0) > 60 then coalesce(oldest_alert_since, now()) else null end, error_alert_since = case when (select count(*) from chat_jobs where attempts > 0 and updated_at >= now() - interval '10 minutes') > 0 and (select count(*) from chat_jobs where status = 'failed' and updated_at >= now() - interval '10 minutes')::decimal / greatest((select count(*) from chat_jobs where attempts > 0 and updated_at >= now() - interval '10 minutes'), 1) > 0.05 then coalesce(error_alert_since, now()) else null end, updated_at = now() where metric_key = 'chat'", [Number(row?.oldest ?? 0)]);
   };
   return {
     async enqueue(input) {
@@ -397,7 +398,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
       await refreshMetrics();
     },
 
-    async release(jobId, delayMs = 0) {
+    async release(jobId, delayMs = 0, durationSeconds) {
       await query(
         `update chat_jobs
          set status = 'queued', next_attempt_at = case when $2::int > 0 then now() + ($2::text || ' milliseconds')::interval else null end,
@@ -405,6 +406,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1`,
         [jobId, delayMs],
       );
+      if (durationSeconds !== undefined) await query("update chat_queue_metrics set duration_seconds_total = duration_seconds_total + $1, duration_samples = duration_samples + 1, updated_at = now() where metric_key = 'chat'", [durationSeconds]);
       await refreshMetrics();
     },
 
