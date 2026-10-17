@@ -266,7 +266,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
     const result = await query("select count(*)::int as depth, coalesce(extract(epoch from (now() - min(created_at))), 0)::int as oldest from chat_jobs where status = 'queued'", []);
     const row = result.rows[0];
     observeChatQueue({ queueDepth: Number(row?.depth ?? 0), oldestJobAgeSeconds: Number(row?.oldest ?? 0) });
-    await query("update chat_queue_metrics set oldest_alert_since = case when coalesce($1, 0) > 60 then coalesce(oldest_alert_since, now()) else null end, error_alert_since = case when (select count(*) from chat_jobs where attempts > 0 and updated_at >= now() - interval '10 minutes') > 0 and (select count(*) from chat_jobs where status = 'failed' and updated_at >= now() - interval '10 minutes')::decimal / greatest((select count(*) from chat_jobs where attempts > 0 and updated_at >= now() - interval '10 minutes'), 1) > 0.05 then coalesce(error_alert_since, now()) else null end, updated_at = now() where metric_key = 'chat'", [Number(row?.oldest ?? 0)]);
+    await query("update chat_queue_metrics set oldest_alert_since = case when coalesce($1, 0) > 60 then coalesce(oldest_alert_since, now()) else null end, error_alert_since = case when worker_errors::decimal / greatest(attempts, 1) > 0.05 then coalesce(error_alert_since, now()) else null end, updated_at = now() where metric_key = 'chat'", [Number(row?.oldest ?? 0)]);
   };
   return {
     async enqueue(input) {
@@ -407,7 +407,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1`,
         [jobId, delayMs],
       );
-      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 = 'chat_execution_retryable' then 1 else 0 end, provider_timeouts = provider_timeouts + case when $2 = 'chat_execution_retryable' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, errorCode ?? null]);
+      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 in ('chat_execution_retryable', 'provider_timeout') then 1 else 0 end, provider_timeouts = provider_timeouts + case when $2 = 'provider_timeout' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, errorCode ?? null]);
       await refreshMetrics();
     },
 

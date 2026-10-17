@@ -66,7 +66,7 @@ function executionFailure(cause: unknown): ChatJobError {
     message === 'persistence_unavailable' ||
     /timeout|timed out|network|fetch|socket|reset|unavailable/i.test(message);
   return {
-    code: retryable ? 'chat_execution_retryable' : 'chat_execution_failed',
+    code: retryable && /timeout|timed out/i.test(message) ? 'provider_timeout' : retryable ? 'chat_execution_retryable' : 'chat_execution_failed',
     message: retryable ? 'The chat provider could not complete the turn.' : 'The chat turn could not be completed.',
     retryable,
   };
