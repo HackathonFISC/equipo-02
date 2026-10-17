@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BriefcaseBusiness, CircleUserRound, FileText, Map, Route } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
 function isBarePath(pathname: string) {
   if (pathname === '/' || pathname === '/chat') return true;
@@ -19,6 +20,15 @@ const navigation = [
 
 export function CandidateShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [newCount, setNewCount] = useState(0);
+  useEffect(() => {
+    const candidateId = window.localStorage.getItem('puente:candidateId');
+    if (!candidateId || pathname === '/vacantes') return;
+    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((body: { searches?: Array<{ newSinceLastVisit?: unknown[] }> } | null) => setNewCount(body?.searches?.reduce((total, view) => total + (view.newSinceLastVisit?.length ?? 0), 0) ?? 0))
+      .catch(() => undefined);
+  }, [pathname]);
   const isCandidateSurface = !isBarePath(pathname);
 
   if (!isCandidateSurface) return <>{children}</>;
@@ -33,7 +43,7 @@ export function CandidateShell({ children }: { children: ReactNode }) {
         <nav aria-label="Navegación principal">
           <ul className="candidate-nav candidate-nav-desktop">
             {navigation.map(({ href, label, icon: Icon }) => (
-              <li key={href}><NavLink href={href} label={label} Icon={Icon} active={pathname === href || pathname.startsWith(`${href}/`)} /></li>
+              <li key={href}><NavLink href={href} label={label} Icon={Icon} badge={href === '/vacantes' ? newCount : 0} active={pathname === href || pathname.startsWith(`${href}/`)} /></li>
             ))}
           </ul>
         </nav>
@@ -42,7 +52,7 @@ export function CandidateShell({ children }: { children: ReactNode }) {
       <nav className="candidate-bottom-nav" aria-label="Navegación móvil">
         <ul className="candidate-nav">
           {navigation.map(({ href, label, icon: Icon }) => (
-            <li key={href}><NavLink href={href} label={label} Icon={Icon} active={pathname === href || pathname.startsWith(`${href}/`)} /></li>
+            <li key={href}><NavLink href={href} label={label} Icon={Icon} badge={0} active={pathname === href || pathname.startsWith(`${href}/`)} /></li>
           ))}
         </ul>
       </nav>
@@ -50,9 +60,9 @@ export function CandidateShell({ children }: { children: ReactNode }) {
   );
 }
 
-function NavLink({ href, label, Icon, active }: { href: string; label: string; Icon: typeof Map; active: boolean }) {
+function NavLink({ href, label, Icon, badge, active }: { href: string; label: string; Icon: typeof Map; badge: number; active: boolean }) {
   return <Link href={href} className={`candidate-nav-link${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>
     <Icon aria-hidden="true" />
-    <span>{label}</span>
+    <span>{label}{badge > 0 ? <span className="nav-badge" aria-label={`${badge} vacantes nuevas`}>{badge}</span> : null}</span>
   </Link>;
 }

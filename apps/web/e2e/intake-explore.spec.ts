@@ -131,6 +131,23 @@ test('UC-05 guarda la búsqueda y la lista', async ({ page }) => {
   await guardarCaptura(page, 'UC-05');
 });
 
+test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async ({ page }) => {
+  let acknowledged = false;
+  await page.addInitScript(() => localStorage.setItem('puente:candidateId', 'candidate-e2e'));
+  await page.route('**/api/searches?candidateId=candidate-e2e', async (route) => {
+    if (route.request().method() === 'PUT') {
+      acknowledged = true;
+      await route.fulfill({ status: 204, body: '' });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ searches: [{ matches: [], newSinceLastVisit: [{ vacancy: { jobId: 'new-1', title: 'Nueva vacante', company: 'Empresa' }, freshness: { label: 'Nueva' } }], summary: { matched: 1 } }] }) });
+  });
+  await page.goto('/vacantes');
+  await expect(page.getByRole('heading', { name: 'Nuevas desde tu última visita' })).toBeVisible(RESPUESTA);
+  await expect(page.getByText('Nueva vacante')).toBeVisible(RESPUESTA);
+  await expect.poll(() => acknowledged).toBe(true);
+});
+
 test('UC-06 elimina los datos del candidato y vacía la lista', async ({ page }) => {
   await abrirInicio(page);
   await buscarVacantes(page);

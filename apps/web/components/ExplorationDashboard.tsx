@@ -99,6 +99,8 @@ export function ExplorationDashboard() {
 
     try {
       const explored = await exploreMutation.mutateAsync(buildPayload(form));
+      window.localStorage.setItem('puente:candidateId', explored.candidateId);
+      window.localStorage.setItem('puente:preferences', JSON.stringify(explored.preferences));
       setResult(explored);
       if (explored.noMatch?.roadmapRequested) {
         try {

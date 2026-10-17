@@ -20,11 +20,24 @@ const money = (min: number | null, max: number | null) => {
 };
 
 export function VacantesView({ result = null, loading = false }: VacantesViewProps) {
+  const [newMatches, setNewMatches] = useState<VacancyMatch[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const matches = result?.matches ?? [];
   const selected = matches.find((match) => match.vacancy.jobId === selectedId) ?? null;
+
+  useEffect(() => {
+    const candidateId = window.localStorage.getItem('puente:candidateId');
+    if (!candidateId) return;
+    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then(async (body: { searches?: Array<{ newSinceLastVisit?: VacancyMatch[] }> } | null) => {
+        setNewMatches(body?.searches?.flatMap((view) => view.newSinceLastVisit ?? []) ?? []);
+        await fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`, { method: 'PUT' });
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('v');
@@ -68,6 +81,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       <div><p className="eyebrow">Explora oportunidades</p><h1>Vacantes para ti</h1><p className="lead">Encontramos oportunidades que se ajustan a lo que buscas.</p></div>
       <span className="vacantes-count">{result?.summary.matched ?? 0} compatibles</span>
     </div>
+    {newMatches.length > 0 ? <section className="new-vacancies" aria-labelledby="new-vacancies-heading"><h2 id="new-vacancies-heading">Nuevas desde tu última visita</h2><div className="vacancy-grid">{newMatches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} />)}</div></section> : null}
     {loading ? <div className="vacancy-grid" aria-label="Cargando vacantes">{[1, 2, 3].map((id) => <Skeleton key={id} className="vacancy-skeleton" />)}</div> : <>
       {matches.length ? <div className="vacancy-grid" aria-label="Vacantes compatibles">{matches.map((match) => <VacancyCard key={match.vacancy.jobId} match={match} onOpen={open} ref={(node) => { if (node) cardRefs.current.set(match.vacancy.jobId, node); }} />)}</div> : <div className="vacantes-empty" role="status"><h2>Aún no hay vacantes compatibles</h2><p>Completa tus preferencias para descubrir oportunidades hechas para ti.</p></div>}
       {result?.noMatch?.nearMatches.length ? <NearMatches matches={result.noMatch.nearMatches} /> : null}
