@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatFn, ChatRequest } from '@puente/agent-runtime';
-import { CAP_MESSAGE, MAX_LLM_TURNS, handleChatTurn } from '../lib/chat-handler';
+import { CAP_MESSAGE, MAX_LLM_TURNS, MAX_TRANSCRIPT_MESSAGES, handleChatTurn } from '../lib/chat-handler';
 import { createInMemoryChatSessionStore } from '../lib/chat-store';
 import type { ChatTurn } from '../lib/chat/schema';
 import { SLOTS } from '../lib/chat/slots';
@@ -9,6 +9,8 @@ const validReply = (over: Record<string, unknown> = {}) =>
   JSON.stringify({ intent: 'ask_slot', reply: 'Cuéntame, ¿cómo te llamo?', slotUpdates: [], ...over });
 const ok = (content: string) => async () => ({ content, model: 'fake' });
 const greeting = SLOTS[0]!;
+/** A value the slot's chips accept: the first chip value, or a free-text answer. */
+const validValue = (slot: (typeof SLOTS)[number]) => slot.chips.find((c) => c.value !== undefined)?.value ?? 'x';
 
 function setup(chat?: ChatFn, extra: Record<string, unknown> = {}) {
   const store = createInMemoryChatSessionStore();
@@ -93,9 +95,9 @@ describe('handleChatTurn', () => {
     const { turn } = setup(undefined);
     let res = bodyOf(await turn('Prefiero no decirlo', { kind: 'chip', slot: 'greeting' }));
     expect(res.pendingSlot).toBe('cv_source');
-    for (const slot of SLOTS.slice(1, 8)) res = bodyOf(await turn('ok', { kind: 'chip', slot: slot.id, value: 'x' }));
+    for (const slot of SLOTS.slice(1, 8)) res = bodyOf(await turn('ok', { kind: 'chip', slot: slot.id, value: validValue(slot) }));
     expect(res).toMatchObject({ intent: 'complete_phase', phase: 'preferences', pendingSlot: 'zone' });
-    for (const slot of SLOTS.slice(8)) res = bodyOf(await turn('ok', { kind: 'chip', slot: slot.id, value: 'x' }));
+    for (const slot of SLOTS.slice(8)) res = bodyOf(await turn('ok', { kind: 'chip', slot: slot.id, value: validValue(slot) }));
     expect(res).toMatchObject({ intent: 'complete_phase', phase: 'done', pendingSlot: null });
   });
 
@@ -148,6 +150,61 @@ describe('handleChatTurn', () => {
     for (const payload of [{}, { message: '' }, { message: 'x', action: { kind: 'chip', slot: 'nope' } }, null]) {
       expect((await handleChatTurn('c', payload, { store })).status).toBe(400);
     }
+  });
+
+  it('rejects chip values outside the slot definition with 400 and persists nothing', async () => {
+    const { turn, store } = setup();
+    const modality = SLOTS.find((s) => s.id === 'modality')!;
+    expect((await turn('x', { kind: 'chip', slot: 'modality', value: 'mars' })).status).toBe(400);
+    expect((await turn('x', { kind: 'skip', slot: 'modality', value: { $where: 1 } })).status).toBe(400);
+    expect((await turn('x', { kind: 'chip', slot: 'greeting', value: 'a'.repeat(101) })).status).toBe(400);
+    expect(store.get('candidate_a')).toBeUndefined();
+    expect((await turn('x', { kind: 'chip', slot: 'modality', value: modality.chips[0]!.value })).status).toBe(200);
+  });
+
+  it('aborts a timed-out request, falls back, and never retries (one attempt)', async () => {
+    let aborted = false;
+    const chat = vi.fn<ChatFn>(
+      (req) =>
+        new Promise((_, reject) => {
+          req.signal?.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('aborted'));
+          });
+        }),
+    );
+    const { turn, log } = setup(chat);
+    const res = bodyOf(await turn('hola'));
+    expect(aborted).toBe(true);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(res).toMatchObject({ source: 'fallback', reply: greeting.question });
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ reason: 'chat_timeout', attempts: 1 }));
+  });
+
+  it('gives a chip-filled slot precedence over a same-turn LLM proposal', async () => {
+    const chat = ok(validReply({ slotUpdates: [{ slot: 'greeting', value: 'Ana', state: 'proposed' }] }));
+    const { turn, store } = setup(chat);
+    const res = bodyOf(await turn('Prefiero no decirlo', { kind: 'chip', slot: 'greeting' }));
+    expect(res).toMatchObject({ source: 'llm', pendingSlot: 'cv_source' });
+    expect(store.get('candidate_a')!.slotState.greeting).toEqual({ state: 'filled' });
+  });
+
+  it('answers a conflicting concurrent turn with 409 instead of losing an update', async () => {
+    const chat: ChatFn = async () => ({ content: validReply(), model: 'm' });
+    const { turn, store } = setup(chat);
+    const [first, second] = await Promise.all([turn('uno'), turn('dos')]);
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect(second.body).toEqual({ error: 'chat_conflict' });
+    expect(store.get('candidate_a')!.version).toBe(1);
+    expect(store.get('candidate_a')!.transcript).toHaveLength(2);
+  });
+
+  it('keeps only the last MAX_TRANSCRIPT_MESSAGES stored messages', async () => {
+    const { turn, store } = setup(ok(validReply()));
+    for (let i = 0; i < MAX_TRANSCRIPT_MESSAGES; i += 1) await turn(`m${i}`);
+    const saved = store.get('candidate_a')!;
+    expect(saved.transcript).toHaveLength(MAX_TRANSCRIPT_MESSAGES);
+    expect(saved.transcript.at(-2)!.content).toBe(`m${MAX_TRANSCRIPT_MESSAGES - 1}`);
   });
 
   it('returns 503 when persistence fails', async () => {

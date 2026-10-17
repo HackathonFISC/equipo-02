@@ -1,6 +1,6 @@
 import { redactPii, type ChatFn } from '@puente/agent-runtime';
 import type { HandlerResult } from './handler-result';
-import { chatSessionStore, type ChatSession } from './chat-store';
+import { ChatSessionConflictError, chatSessionStore, type ChatSession } from './chat-store';
 import { buildMessages, buildSystemPrompt, type CandidateContext } from './chat/prompt';
 import { modelOutputJsonSchema, validateChatTurn, validateModelOutput, type ChatTurn } from './chat/schema';
 import { SKIP_DEFAULTS, isSlotId, slotDefinition, type SlotId } from './chat/slots';
@@ -16,6 +16,9 @@ import {
 export const MAX_LLM_TURNS = 40;
 export const LLM_TIMEOUT_MS = 20_000;
 export const MAX_MESSAGE_LENGTH = 2000;
+/** Stored transcript cap; older messages are dropped before each save. */
+export const MAX_TRANSCRIPT_MESSAGES = 40;
+const MAX_FREE_VALUE_LENGTH = 100;
 export const CAP_MESSAGE = 'Sigamos con lo importante para encontrarte vacantes.';
 const PROFILE_DONE = '¡Gracias! Estoy leyendo lo que me contaste…';
 const PREFERENCES_OPENER = 'Ya sé bastante de ti. Solo me faltan unas cosas para buscarte vacantes.';
@@ -37,7 +40,19 @@ export interface AsyncChatStore {
 }
 
 function freshSession(): ChatSession {
-  return { transcript: [], slotState: initialSlotState(), llmTurns: 0, capNoticeSent: false };
+  return { transcript: [], slotState: initialSlotState(), llmTurns: 0, capNoticeSent: false, version: 0 };
+}
+
+/**
+ * Values a client may persist for a slot. Enumerated slots (some chip defines a
+ * value) accept only those values; free-value slots accept a bounded primitive.
+ */
+export function isAllowedSlotValue(slot: SlotId, value: unknown): boolean {
+  if (value === undefined) return true;
+  const chipValues = slotDefinition(slot).chips.filter((c) => c.value !== undefined).map((c) => c.value);
+  if (chipValues.length > 0) return chipValues.includes(value);
+  if (typeof value === 'string') return value.trim().length > 0 && value.length <= MAX_FREE_VALUE_LENGTH;
+  return (typeof value === 'number' && Number.isFinite(value)) || typeof value === 'boolean';
 }
 
 function parseAction(raw: unknown): UserAction | undefined {
@@ -46,21 +61,14 @@ function parseAction(raw: unknown): UserAction | undefined {
   const a = raw as Record<string, unknown>;
   if (a.kind === 'text') return { kind: 'text' };
   if (!isSlotId(a.slot)) return undefined;
-  if (a.kind === 'chip') return { kind: 'chip', slot: a.slot, value: a.value };
+  if (a.kind === 'chip') return isAllowedSlotValue(a.slot, a.value) ? { kind: 'chip', slot: a.slot, value: a.value } : undefined;
   if (a.kind === 'confirm') return { kind: 'confirm', slot: a.slot };
   if (a.kind === 'change') return { kind: 'change', slot: a.slot };
   if (a.kind === 'skip') {
+    if (!isAllowedSlotValue(a.slot, a.value)) return undefined;
     return { kind: 'skip', slot: a.slot, value: a.value !== undefined ? a.value : SKIP_DEFAULTS[a.slot] };
   }
   return undefined;
-}
-
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('chat_timeout')), ms);
-  });
-  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
 interface ModelOutput {
@@ -84,16 +92,26 @@ async function callModel(
   let error: string | undefined;
   let usage: LlmOutcome['usage'];
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    // One AbortController per attempt: the timeout aborts the HTTP request, not just the wait.
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error('chat_timeout'));
+      }, timeoutMs);
+    });
     try {
-      const result = await withTimeout(
+      const result = await Promise.race([
         chat({
           messages,
           jsonSchema: { name: 'chat_turn', schema: modelOutputJsonSchema as unknown as Record<string, unknown> },
           temperature: 0.4,
           maxTokens: 500,
+          signal: controller.signal,
         }),
-        timeoutMs,
-      );
+        timeout,
+      ]);
       usage = result.usage ?? usage;
       const parsed: unknown = JSON.parse(result.content);
       if (validateModelOutput(parsed)) {
@@ -101,7 +119,11 @@ async function callModel(
       }
       error = 'invalid_output';
     } catch (cause) {
+      // Timeout is terminal: no retry, so a slow model cannot double the wait.
+      if (controller.signal.aborted) return { usage, attempts: attempt, error: 'chat_timeout' };
       error = cause instanceof Error ? cause.message : 'chat_failed';
+    } finally {
+      clearTimeout(timer);
     }
   }
   return { usage, attempts: 2, error };
@@ -208,10 +230,13 @@ export async function handleChatTurn(
   const nextState = applyTurn(afterAction, updates, { kind: 'text' });
   session.slotState = nextState;
   session.transcript.push({ role: 'assistant', content: turn.reply });
+  session.transcript = session.transcript.slice(-MAX_TRANSCRIPT_MESSAGES);
 
   try {
     await store.save(candidateId, session);
-  } catch {
+  } catch (cause) {
+    // Another turn saved first (optimistic lock on version): the client must re-sync.
+    if (cause instanceof ChatSessionConflictError) return { status: 409, body: { error: 'chat_conflict' } };
     return { status: 503, body: { error: 'persistence_unavailable' } };
   }
 
