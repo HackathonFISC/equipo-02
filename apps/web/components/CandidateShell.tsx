@@ -52,7 +52,7 @@ export function CandidateShell({ children }: { children: ReactNode }) {
       <nav className="candidate-bottom-nav" aria-label="Navegación móvil">
         <ul className="candidate-nav">
           {navigation.map(({ href, label, icon: Icon }) => (
-            <li key={href}><NavLink href={href} label={label} Icon={Icon} badge={0} active={pathname === href || pathname.startsWith(`${href}/`)} /></li>
+            <li key={href}><NavLink href={href} label={label} Icon={Icon} badge={href === '/vacantes' ? newCount : 0} active={pathname === href || pathname.startsWith(`${href}/`)} /></li>
           ))}
         </ul>
       </nav>

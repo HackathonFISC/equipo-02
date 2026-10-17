@@ -25,6 +25,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveLabel, setSaveLabel] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [pendingSave, setPendingSave] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
   const matches = result?.matches ?? [];
@@ -33,7 +34,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('save') === '1') {
       const pending = window.sessionStorage.getItem('puente:pending-save');
-      if (pending) { setSaveLabel(JSON.parse(pending).label ?? ''); setSaveOpen(true); window.sessionStorage.removeItem('puente:pending-save'); }
+      if (pending) { setSaveLabel(JSON.parse(pending).label ?? ''); setPendingSave(true); setSaveOpen(true); window.sessionStorage.removeItem('puente:pending-save'); }
     }
     const candidateId = window.localStorage.getItem('puente:candidateId');
     if (!candidateId) return;
@@ -46,6 +47,10 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (pendingSave && saveOpen) void saveSearch();
+  }, [pendingSave, saveOpen]);
+
   async function saveSearch() {
     const rawPreferences = window.localStorage.getItem('puente:preferences');
     if (!rawPreferences) return;
@@ -56,7 +61,7 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
       return;
     }
     setSaveMessage(response.ok ? 'Búsqueda guardada.' : 'No se pudo guardar la búsqueda.');
-    if (response.ok) setSaveOpen(false);
+    if (response.ok) { setSaveOpen(false); setPendingSave(false); }
   }
 
   useEffect(() => {
