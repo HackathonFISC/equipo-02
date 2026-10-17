@@ -173,6 +173,17 @@ export interface HumanApprovalDecision {
   approvedAt?: string;
 }
 
+export interface Gap {
+  id: string;
+  severity: "critical" | "minor";
+  description: string;
+}
+
+export interface BiasAlert {
+  id: string;
+  reason: string;
+}
+
 export interface MatchDecision {
   schemaVersion: "1.0.0";
   candidateId: string;
@@ -191,6 +202,10 @@ export interface MatchDecision {
   promotion: PromotionRecord;
   routing: RouteEstimate;
   decidedAt: string;
+  /** Critical gaps derived from failed hard constraints. */
+  gaps: readonly Gap[];
+  /** Fairness alerts from vacancy JobRequirements, empty when none. */
+  biasAlerts: readonly BiasAlert[];
 }
 
 export interface MatchOptions {
