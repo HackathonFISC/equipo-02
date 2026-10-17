@@ -3,6 +3,7 @@ import { savedSearchesStore, type SavedSearch } from './saved-searches-store';
 import { neon } from '@neondatabase/serverless';
 import { preferencesStore } from './preferences-store';
 import { profileStore } from './profile-store';
+import { chatSessionStore, type ChatSession } from './chat-store';
 
 export function persistenceMode(env: NodeJS.ProcessEnv = process.env): 'neon' | 'memory' {
   return env.PUENTE_PERSISTENCE === 'memory' ? 'memory' : 'neon';
@@ -59,8 +60,10 @@ export async function deleteCandidateData(candidateId: string): Promise<void> {
     profileStore.delete(candidateId);
     preferencesStore.delete(candidateId);
     savedSearchesStore.deleteByCandidate(candidateId);
+    chatSessionStore.delete(candidateId);
     return;
   }
+  await database()`delete from candidate_chat_sessions where candidate_id = ${candidateId}`;
   await database()`delete from candidate_saved_searches where candidate_id = ${candidateId}`;
   await database()`delete from candidate_profiles where candidate_id = ${candidateId}`;
   await database()`delete from candidate_preferences where candidate_id = ${candidateId}`;
@@ -84,4 +87,22 @@ export async function readSavedSearches(candidateId: string): Promise<SavedSearc
   if (persistenceMode() === 'memory') return savedSearchesStore.list(candidateId);
   const rows = await database()`select search from candidate_saved_searches where candidate_id = ${candidateId} order by search_id`;
   return rows.map((row) => (row as { search: SavedSearch }).search);
+}
+
+export async function persistChatSession(candidateId: string, session: ChatSession): Promise<void> {
+  if (persistenceMode() === 'memory') {
+    chatSessionStore.save(candidateId, session);
+    return;
+  }
+  await database()`
+    insert into candidate_chat_sessions (candidate_id, session)
+    values (${candidateId}, ${JSON.stringify(session)}::jsonb)
+    on conflict (candidate_id) do update set session = excluded.session, updated_at = now()
+  `;
+}
+
+export async function readChatSession(candidateId: string): Promise<ChatSession | undefined> {
+  if (persistenceMode() === 'memory') return chatSessionStore.get(candidateId);
+  const rows = await database()`select session from candidate_chat_sessions where candidate_id = ${candidateId}`;
+  return (rows[0] as { session?: ChatSession } | undefined)?.session;
 }
