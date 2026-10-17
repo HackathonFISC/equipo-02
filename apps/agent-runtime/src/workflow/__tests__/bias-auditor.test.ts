@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CandidatePreferences, WorkflowRunRequest } from "@workbridge/domain";
 import preferencesFixture from "../../../../../packages/catalog/fixtures/preferences.json";
 import { createWorkflowRuntime } from "../graph";
+import { createSeedTrainingCatalog } from "@workbridge/training";
 import {
   candidateProfile,
   CANDIDATE_CONTEXT,
@@ -121,5 +122,26 @@ describe("bias auditor workflow step", () => {
     expect(
       engine.traces.tracesFor("trace-bias-stable").spans.filter((span) => span.name === "bias_finding"),
     ).toHaveLength(0);
+  });
+
+  it("does not build a training roadmap targeting a vacancy excluded by the auditor", async () => {
+    const engine = createWorkflowRuntime({
+      clock: () => "2026-10-16T12:00:00.000Z",
+      complete: async () => ({ text: "Plan de practica en caja" }),
+      matchingEnv: {},
+      trainingCatalog: createSeedTrainingCatalog(),
+      trainingPreferences: {
+        specializations: ["it_support"],
+        maxCostUsd: 200,
+        maxTotalHours: 100,
+      },
+    });
+
+    const result = await engine.run(request({ matchingInput: await matchingInput(10) }));
+
+    expect(result.biasAlerts).toHaveLength(1);
+    expect(result.match?.result.decisions).toEqual([]);
+    expect(result.roadmap).toBeUndefined();
+    expect(result.status).toBe("success");
   });
 });

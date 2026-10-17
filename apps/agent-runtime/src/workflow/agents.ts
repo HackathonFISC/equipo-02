@@ -184,7 +184,6 @@ async function buildTrainingRoadmap(
   const targetVacancyId =
     nomination.result.assignments[0]?.vacancyId ??
     decisions[0]?.vacancyId ??
-    input.vacancies[0]?.document.vacancyId ??
     null;
   const vacancyInput = input.vacancies.find((item) => item.document.vacancyId === targetVacancyId);
   if (!vacancyInput) return undefined;
