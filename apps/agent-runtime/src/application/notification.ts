@@ -95,7 +95,7 @@ export function createSqlNotificationOutbox(query: SqlQuery, ids: () => string =
       return result.rows.map((row) => {
         const notification: OutboundNotification = {
           recipientRole: requiredRole(row.recipient_role),
-          channel: "in_app",
+          channel: requiredChannel(row.channel),
           timestamp: requiredTimestamp(row.notified_at),
           traceId: requiredText(row.trace_id),
         };
@@ -108,6 +108,11 @@ export function createSqlNotificationOutbox(query: SqlQuery, ids: () => string =
 
 function requiredRole(value: unknown): NotificationRecipientRole {
   if (value === "candidate" || value === "employer" || value === "counselor") return value;
+  throw new ApplicationError("Outbound notification is invalid.", 422, "invalid_input");
+}
+
+function requiredChannel(value: unknown): NotificationChannel {
+  if (value === "in_app") return value;
   throw new ApplicationError("Outbound notification is invalid.", 422, "invalid_input");
 }
 

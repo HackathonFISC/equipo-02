@@ -2,8 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import type { MatchDecision } from "@workbridge/domain";
 import type { EvidenceItem } from "../evidence";
 import { sampleMatchDecision, sampleWorkflowEnvelope } from "../fixtures";
+import {
+  createMemoryNotificationOutbox,
+  createMockNotificationPort,
+  createSqlNotificationOutbox,
+  ENSURE_NOTIFICATION_OUTBOX_SQL,
+  type OutboundNotification,
+} from "../notification";
 import { signBetterAuthSession } from "../roles";
 import { ApplicationService } from "../service";
+import type { SqlQuery } from "../store";
 
 const NOW = "2026-10-16T18:00:00.000Z";
 const SESSION_SECRET = "better-auth-test-secret";
@@ -196,5 +204,94 @@ describe("outbound notification outbox", () => {
     expect(auditAfterDecision.filter((event) => event.action === "approval" && event.role === "employer").length).toBe(
       auditBeforeDecision.filter((event) => event.action === "approval" && event.role === "employer").length + 1,
     );
+  });
+
+  it("delivers the same outbox record through an injected sender", async () => {
+    const sent: OutboundNotification[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = new ApplicationService({
+      clock: () => NOW,
+      ids: (() => {
+        let n = 0;
+        return () => `id-${n++}`;
+      })(),
+      sessionSecret: SESSION_SECRET,
+      notifications: {
+        async send(notification) {
+          sent.push({ ...notification });
+        },
+      },
+    });
+    const created = app.createDraft(session("candidate"), draftInput());
+    app.approveDraft(session("candidate"), created.draftId, action("confirmo el borrador", "idem-port"));
+    await app.submit(session("candidate"), created.draftId, action("envío la postulación", "idem-port-submit"));
+    const expected: OutboundNotification = {
+      recipientRole: "employer",
+      channel: "in_app",
+      timestamp: NOW,
+      traceId: "trace-notify",
+    };
+    expect(sent).toEqual([expected]);
+    expect(await app.outboundNotifications(session("candidate"), "trace-notify")).toEqual([expected]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    await expect(
+      createMockNotificationPort().send({ ...expected, traceId: "ana@workbridge.pa" }),
+    ).rejects.toThrow(/personal data/);
+  });
+
+  it("persists outbox rows through the SQL adapter and refuses personal data", async () => {
+    const calls: Array<{ sql: string; params: readonly unknown[] }> = [];
+    const stored: Array<Record<string, unknown>> = [];
+    const query: SqlQuery = async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql === ENSURE_NOTIFICATION_OUTBOX_SQL) return { rows: [] };
+      if (sql.startsWith("SELECT")) {
+        return { rows: stored.filter((row) => row.trace_id === params[0]) };
+      }
+      stored.push({
+        recipient_role: params[1],
+        channel: params[2],
+        notified_at: new Date(String(params[3])),
+        trace_id: params[4],
+      });
+      return { rows: [] };
+    };
+    const outbox = createSqlNotificationOutbox(query, () => "ntf-1");
+    const row: OutboundNotification = {
+      recipientRole: "candidate",
+      channel: "in_app",
+      timestamp: NOW,
+      traceId: "trace-sql",
+    };
+    await outbox.append(row);
+    await expect(outbox.list("trace-sql")).resolves.toEqual([row]);
+    await expect(outbox.list("trace-other")).resolves.toEqual([]);
+    expect(calls[0]?.sql).toBe(ENSURE_NOTIFICATION_OUTBOX_SQL);
+    expect(calls[1]?.sql).toContain("INSERT INTO notification_outbox");
+    expect(calls[1]?.params).toEqual(["ntf-1", "candidate", "in_app", NOW, "trace-sql"]);
+
+    const memory = createMemoryNotificationOutbox();
+    await expect(
+      memory.append({ ...row, traceId: "6000-1234" }),
+    ).rejects.toThrow(/personal data/);
+    await expect(
+      memory.append({ ...row, channel: "email" as OutboundNotification["channel"] }),
+    ).rejects.toThrow(/invalid/);
+    await expect(memory.append({ ...row, traceId: " " })).rejects.toThrow(/traceId/);
+    expect(await memory.list("trace-sql")).toEqual([]);
+
+    for (const bad of [
+      { recipient_role: "stranger", channel: "in_app", notified_at: NOW, trace_id: "trace-sql" },
+      { recipient_role: "employer", channel: "sms", notified_at: NOW, trace_id: "trace-sql" },
+      { recipient_role: "employer", channel: "in_app", notified_at: NOW, trace_id: "" },
+      { recipient_role: "employer", channel: "in_app", notified_at: 12, trace_id: "trace-sql" },
+    ]) {
+      const invalid = createSqlNotificationOutbox(async (sql) => {
+        if (sql === ENSURE_NOTIFICATION_OUTBOX_SQL) return { rows: [] };
+        return { rows: [bad] };
+      });
+      await expect(invalid.list("trace-sql")).rejects.toThrow(/invalid/);
+    }
   });
 });

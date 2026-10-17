@@ -5,6 +5,7 @@ import { resolveDatabaseMode } from "../database";
 import { signBetterAuthSession } from "../roles";
 import { createApplicationServer } from "../server";
 import { sampleMatchDecision, sampleWorkflowEnvelope } from "../fixtures";
+import { ENSURE_NOTIFICATION_OUTBOX_SQL } from "../notification";
 import { createSqlIdempotencyStore, ENSURE_IDEMPOTENCY_TABLE_SQL, type SqlQuery } from "../store";
 import { startApplicationServer } from "../main";
 import handler from "../vercel";
@@ -112,6 +113,8 @@ describe("application HTTP surface", () => {
       });
       expect(submitted.status).toBe(200);
       expect(calls[0]).toBe(ENSURE_IDEMPOTENCY_TABLE_SQL);
+      expect(calls).toContain(ENSURE_NOTIFICATION_OUTBOX_SQL);
+      expect(calls.some((sql) => sql.includes("INSERT INTO notification_outbox"))).toBe(true);
       expect(calls.some((sql) => sql.includes("INSERT"))).toBe(true);
     }, query);
   });
@@ -278,11 +281,16 @@ describe("application HTTP surface", () => {
       });
       expect(read.status).toBe(200);
       const text = await read.text();
-      const view = JSON.parse(text) as Record<string, any>;
+      const view = JSON.parse(text) as {
+        traceId: string;
+        vacancyTitle: string;
+        documents: { cv: Array<{ text: string }> };
+        evidence: Array<{ id: string }>;
+      };
       expect(view.traceId).toBe("trace-http");
       expect(view.vacancyTitle).toBe("Cajero");
-      expect(view.documents.cv[0].text).toBe("Atendí la caja del kiosco familiar.");
-      expect(view.evidence.map((item: { id: string }) => item.id)).toEqual(["ev-1"]);
+      expect(view.documents.cv[0]?.text).toBe("Atendí la caja del kiosco familiar.");
+      expect(view.evidence.map((item) => item.id)).toEqual(["ev-1"]);
       expect(text).not.toContain("descartado");
       for (const key of ["age", "gender", "address", "photo", "Calle 1"]) expect(text).not.toContain(key);
 
