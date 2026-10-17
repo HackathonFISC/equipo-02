@@ -56,6 +56,7 @@ controls need 3:1. Every color pair used by the initial web styling slice is lis
 | `teal-700` on cream (links) | 5.20 | ✓ |
 | `teal-700` on `teal-tint` | 4.67 | ✓ |
 | Ink on cream | 13.95 | ✓ |
+| Ink on white card / popover | 14.70 | ✓ |
 | Ink on line (neutral badge/muted surface) | 11.33 | ✓ |
 | Ink-muted on cream / white card | 6.40 / 6.74 | ✓ |
 | Ink on `teal-tint` | 12.53 | ✓ |
