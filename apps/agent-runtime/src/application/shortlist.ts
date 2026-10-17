@@ -58,9 +58,15 @@ export function createShortlistSource(options: {
       const baseline = await matching.nominateForCandidate(input);
       const audited = await auditCounterfactuals({ input, baseline, matching, now, subject: biasSubjectFor(input) });
       const decision = audited.match?.result.decisions[0];
+      // The auditor, not the vacancy document, is the source of bias alerts.
+      const biasAlerts = audited.alerts
+        .filter((alert) => alert.vacancyId === vacancyId)
+        .map(({ id, reason }) => ({ id, reason }));
       return {
         biasBlocked: audited.blockedVacancyIds.includes(vacancyId),
-        ...(decision ? { decision: { ...toApplicationMatchDecision(decision, input.vacancies[0]!.document), candidateId } } : {}),
+        ...(decision
+          ? { decision: { ...toApplicationMatchDecision(decision, input.vacancies[0]!.document), candidateId, biasAlerts } }
+          : {}),
       };
     },
   };

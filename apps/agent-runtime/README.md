@@ -133,8 +133,6 @@ invented credentials, unauthorized tools, and a clean input. A forced primary
 model failure promotes the next model in the capability chain. Exhausting the
 chain records `pending → failed → retrying → dead_letter`.
 
-## Validation
-
 ### Employer shortlist (#100)
 
 `GET /vacancies/:vacancyId/shortlist` ranks applications already received for
@@ -159,6 +157,8 @@ shortlist. Missing profile/preferences exclude that applicant; absent SQL storag
 returns 503 when scoring is needed. Applications continue to use the existing
 runtime submission registry. Tests can inject a trusted `ShortlistSource` in
 `ApplicationServiceOptions`; it is never exposed as a request body.
+
+## Validation
 
 ```bash
 npm run lint          # eslint
