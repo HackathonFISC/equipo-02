@@ -90,9 +90,10 @@ export interface SubmissionSummary {
   traceId: string;
 }
 
+/** Employer-safe row: no candidate identifiers beyond the existing submission view's submissionId. */
 export interface ShortlistEntry {
+  rank: number;
   submissionId: string;
-  candidateId: string;
   score: number;
   aptitude: MatchDecision["aptitude"];
   gapSummary: string[];
@@ -454,7 +455,7 @@ export class ApplicationService {
     if (owner !== actor.employerOrgId) {
       throw new ApplicationError("This vacancy belongs to another employer organization.", 403, "forbidden");
     }
-    const entries: ShortlistEntry[] = [];
+    const entries: Array<{ candidateId: string; entry: Omit<ShortlistEntry, "rank"> }> = [];
     for (const submission of this.submissions.values()) {
       const draft = this.draftById(submission.draftId);
       if (draft.input.vacancyId !== vacancyId || !this.employerOwns(actor, draft)) continue;
@@ -466,18 +467,23 @@ export class ApplicationService {
         throw new ApplicationError("Ranking decision does not match the submission.", 422, "inconsistent_match");
       }
       entries.push({
-        submissionId: submission.id,
         candidateId: draft.ownerId,
-        score: match.score.weightedTotal,
-        aptitude: match.aptitude,
-        gapSummary: match.gaps.map((gap) => gap.description),
-        biasAlerts: match.biasAlerts.map((alert) => ({ ...alert })),
+        entry: {
+          submissionId: submission.id,
+          score: match.score.weightedTotal,
+          aptitude: match.aptitude,
+          gapSummary: match.gaps.map((gap) => gap.description),
+          biasAlerts: match.biasAlerts.map((alert) => ({ ...alert })),
+        },
       });
     }
     // Code-point ordering keeps ties stable without depending on the host locale.
     const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
-    return entries.sort((left, right) => right.score - left.score ||
-      compare(left.candidateId, right.candidateId) || compare(left.submissionId, right.submissionId));
+    // Order: score desc, then candidate id, then submission id (all ascending). candidateId stays server-side.
+    return entries
+      .sort((left, right) => right.entry.score - left.entry.score ||
+        compare(left.candidateId, right.candidateId) || compare(left.entry.submissionId, right.entry.submissionId))
+      .map(({ entry }, index) => ({ rank: index + 1, ...entry }));
   }
 
   private actor(session: unknown): Actor {

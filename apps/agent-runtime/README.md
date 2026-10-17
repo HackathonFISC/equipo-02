@@ -139,7 +139,8 @@ chain records `pending → failed → retrying → dead_letter`.
 
 `GET /vacancies/:vacancyId/shortlist` ranks applications already received for
 that vacancy by a freshly computed deterministic score, descending, with stable
-candidate/submission id ties. Each entry contains `submissionId`, `candidateId`,
+candidate id, then submission id ties (candidate ids are not returned).
+Each entry contains `rank`, `submissionId`,
 `score`, `aptitude`, `gapSummary`, and `biasAlerts`. The browser endpoint is
 `GET /api/applications/vacancies/:vacancyId/shortlist`.
 

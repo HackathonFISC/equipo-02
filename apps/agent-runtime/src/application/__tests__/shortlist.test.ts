@@ -60,7 +60,8 @@ describe("employer vacancy shortlist", () => {
     await submit(app, "weak");
     await submit(app, "strong");
     const first = await app.shortlistForVacancy(session("employer"), "vac-1");
-    expect(first.map((entry) => entry.candidateId)).toEqual(["strong", "weak"]);
+    expect(first.map((entry) => entry.rank)).toEqual([1, 2]);
+    expect(first.every((entry) => !("candidateId" in entry))).toBe(true);
     expect(first.map((entry) => entry.score)).toEqual([90, 60]);
     expect(first[0]).toMatchObject({ gapSummary: ["Practicar Excel"], biasAlerts: [{ id: "advisory", reason: "Revisar requisito de la vacante" }] });
     expect(await app.shortlistForVacancy(session("employer"), "vac-1")).toEqual(first);
@@ -82,6 +83,20 @@ describe("employer vacancy shortlist", () => {
     match.mockResolvedValueOnce({ biasBlocked: false, decision: sampleMatchDecision({ traceId: "trusted", candidateId: "strong", total: 90 }) });
     match.mockResolvedValueOnce({ biasBlocked: true });
     expect(await app.shortlistForVacancy(session("employer"), "vac-1")).toEqual([]);
+  });
+
+  it("breaks score ties by candidate id, independent of submission order", async () => {
+    const { app, match } = setup();
+    match.mockImplementation(async (candidateId, vacancyId) => ({
+      biasBlocked: false,
+      decision: sampleMatchDecision({ traceId: "tie", candidateId, vacancyId, total: 70 }),
+    }));
+    await submit(app, "zed");
+    const alpha = await submit(app, "alpha");
+    const ranked = await app.shortlistForVacancy(session("employer"), "vac-1");
+    expect(ranked.map((entry) => entry.score)).toEqual([70, 70]);
+    // Candidate id "alpha" sorts before "zed" even though it was submitted second.
+    expect(ranked[0]?.submissionId).toBe(alpha.submissionId);
   });
 
   it("returns an empty shortlist when the owned vacancy has no applications", async () => {

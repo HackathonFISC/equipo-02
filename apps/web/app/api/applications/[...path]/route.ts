@@ -15,6 +15,10 @@ async function handler(request: Request, context: RouteContext): Promise<Respons
   }
 
   const { path } = await context.params;
+  // URL normalization would turn dot segments into a different runtime route than the one authenticated below.
+  if ((path ?? []).some((segment) => segment === '.' || segment === '..')) {
+    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  }
   const isShortlist = path?.length === 3 && path[0] === 'vacancies' && path[2] === 'shortlist';
   let session = readSession(request);
   if (isShortlist) {
