@@ -139,7 +139,20 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
   }
 
   if (status === 200) {
-    await jobs.succeed(job.jobId, body);
+    try {
+      await jobs.succeed(job.jobId, body);
+    } catch {
+      // The session is already committed. Do not report success or execute the
+      // action again; release the acknowledgement lease so a later worker can
+      // retry the durable acknowledgement safely.
+      try {
+        await jobs.release(job.jobId);
+      } catch {
+        log({ event: 'chat_job_acknowledgement_unavailable', jobId: job.jobId });
+      }
+      log({ event: 'chat_job_acknowledgement_retry', jobId: job.jobId });
+      return { outcome: 'retried', jobId: job.jobId };
+    }
     log({ event: 'chat_job_succeeded', jobId: job.jobId, sessionVersion: job.sessionVersion });
     return { outcome: 'succeeded', jobId: job.jobId };
   }

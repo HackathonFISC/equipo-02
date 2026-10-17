@@ -70,6 +70,31 @@ describe('processOneChatJob', () => {
     expect(events).toEqual(['save', 'succeed']);
   });
 
+  it('releases the acknowledgement lease when succeed fails after session commit', async () => {
+    const realJobs = createInMemoryChatJobStore();
+    const realSessions = createInMemoryChatSessionStore();
+    const events: string[] = [];
+    const jobs: ChatJobStore = {
+      ...realJobs,
+      succeed: async () => {
+        events.push('succeed');
+        throw new Error('acknowledgement unavailable');
+      },
+      release: async (jobId) => {
+        events.push('release');
+        return realJobs.release(jobId);
+      },
+    };
+    const { job } = await enqueueJob(jobs);
+
+    const outcome = await processOneChatJob({ jobs, sessionStore: realSessions, chat: fakeChat() });
+
+    expect(outcome).toEqual({ outcome: 'retried', jobId: job.jobId });
+    expect(events).toEqual(['succeed', 'release']);
+    expect((await realSessions.get(CANDIDATE))?.version).toBe(1);
+    expect((await jobs.get(job.jobId))?.status).toBe('queued');
+  });
+
   it('does not acknowledge a job whose session commit conflicts', async () => {
     const jobs = createInMemoryChatJobStore();
     let reads = 0;
