@@ -79,8 +79,8 @@ export interface ChatJobStore {
   findByIdempotencyKey(candidateId: string, idempotencyKey: string): Promise<ChatJob | undefined>;
   get(jobId: string): Promise<ChatJob | undefined>;
   claimNext(options: ClaimChatJobOptions): Promise<ChatJob | undefined>;
-  succeed(jobId: string, result: unknown): Promise<void>;
-  fail(jobId: string, error: ChatJobError): Promise<void>;
+  succeed(jobId: string, result: unknown, leaseOwner?: string): Promise<void>;
+  fail(jobId: string, error: ChatJobError, leaseOwner?: string): Promise<void>;
   /** Release a lease without completing, so a transient failure can be retried. */
   release(jobId: string, delayMs?: number): Promise<void>;
   deleteByCandidate(candidateId: string): Promise<void>;
@@ -166,9 +166,10 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       return clone(next);
     },
 
-    async succeed(jobId, result) {
+    async succeed(jobId, result, leaseOwner) {
       const job = jobs.get(jobId);
       if (!job) return;
+      if (leaseOwner && job.leaseOwner !== leaseOwner) return;
       job.status = 'succeeded';
       job.result = clone(result);
       delete job.error;
@@ -178,9 +179,10 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       job.updatedAt = job.finishedAt;
     },
 
-    async fail(jobId, error) {
+    async fail(jobId, error, leaseOwner) {
       const job = jobs.get(jobId);
       if (!job) return;
+      if (leaseOwner && job.leaseOwner !== leaseOwner) return;
       job.status = 'failed';
       job.error = { ...error };
       delete job.result;
@@ -344,27 +346,27 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
       return row ? mapRow(row) : undefined;
     },
 
-    async succeed(jobId, result) {
+    async succeed(jobId, result, leaseOwner) {
       await query(
         `update chat_jobs
          set status = 'succeeded', result = $2::jsonb,
              error_code = null, error_message = null, error_retryable = null,
              lease_owner = null, lease_expires_at = null,
              finished_at = now(), updated_at = now()
-         where job_id = $1`,
-        [jobId, JSON.stringify(result)],
+          where job_id = $1 and ($3::text is null or lease_owner = $3)`,
+        [jobId, JSON.stringify(result), leaseOwner ?? null],
       );
     },
 
-    async fail(jobId, error) {
+    async fail(jobId, error, leaseOwner) {
       await query(
         `update chat_jobs
          set status = 'failed', result = null,
              error_code = $2, error_message = $3, error_retryable = $4,
              lease_owner = null, lease_expires_at = null,
              finished_at = now(), updated_at = now()
-         where job_id = $1`,
-        [jobId, error.code, error.message, error.retryable],
+         where job_id = $1 and ($5::text is null or lease_owner = $5)`,
+        [jobId, error.code, error.message, error.retryable, leaseOwner ?? null],
       );
     },
 

@@ -187,6 +187,14 @@ describe('GET /api/v1/chat/turns/{jobId}', () => {
     });
   });
 
+  it('returns the running status for the owner', async () => {
+    const { job } = await enqueue();
+    await store.claimNext({ leaseOwner: 'w1', leaseMs: 1000 });
+    const res = await get(job.jobId, 'u');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ jobId: job.jobId, status: 'running' });
+  });
+
   it('returns the ChatTurn only for a succeeded job', async () => {
     const { job } = await enqueue();
     await store.claimNext({ leaseOwner: 'w1', leaseMs: 1000 });

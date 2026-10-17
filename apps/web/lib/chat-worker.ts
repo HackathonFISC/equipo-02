@@ -48,7 +48,7 @@ async function settle(
     log({ event: 'chat_job_retry', jobId: job.jobId, attempts: job.attempts, code: error.code, backoffMs });
     return { outcome: 'retried', jobId: job.jobId };
   }
-  await jobs.fail(job.jobId, error);
+  await jobs.fail(job.jobId, error, job.leaseOwner);
   log({ event: 'chat_job_failed', jobId: job.jobId, attempts: job.attempts, code: error.code });
   return { outcome: 'failed', jobId: job.jobId };
 }
@@ -102,7 +102,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       code: 'session_version_conflict',
       message: 'The chat session changed before this turn was applied.',
       retryable: false,
-    });
+    }, job.leaseOwner);
     log({ event: 'chat_job_failed', jobId: job.jobId, code: 'session_version_conflict' });
     return { outcome: 'failed', jobId: job.jobId };
   }
@@ -141,7 +141,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
 
   if (status === 200) {
     try {
-      await jobs.succeed(job.jobId, body);
+       await jobs.succeed(job.jobId, body, job.leaseOwner);
     } catch {
       // The session is already committed. Do not report success or execute the
       // action again; release the acknowledgement lease so a later worker can
