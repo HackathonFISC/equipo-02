@@ -115,7 +115,7 @@ cambios y escritura final fueron del equipo.
 
 La tabla y este registro documentan resultados ya comprobados por la suite; este
 ticket solo añade trazabilidad documental y no añade casos de prueba ni cambia
-`npm test`.
+`npm test`; this scope statement is recorded in commit `45d8cac`.
 
 ---
 

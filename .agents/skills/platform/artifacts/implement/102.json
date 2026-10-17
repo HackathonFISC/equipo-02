@@ -9,7 +9,7 @@
     "commands": [
       "git diff --check",
       "node -e \"JSON.parse(require('fs').readFileSync('.agents/skills/platform/artifacts/implement/102.json', 'utf8'))\"",
-      "git cat-file -e ef1ff1f^{commit} && git cat-file -e 41a92b2^{commit} && git cat-file -e 73e232a^{commit} && git cat-file -e cf35082^{commit} && git cat-file -e 8eea3e0^{commit} && git cat-file -e 493129a^{commit} && git cat-file -e 7acb1e3^{commit} && git cat-file -e 6d48081^{commit} && test -f .agents/skills/platform/artifacts/implement/{2,4,32,56,101,102}.md"
+      "git cat-file -e ef1ff1f^{commit} && git cat-file -e 41a92b2^{commit} && git cat-file -e 73e232a^{commit} && git cat-file -e cf35082^{commit} && git cat-file -e 8eea3e0^{commit} && git cat-file -e 493129a^{commit} && git cat-file -e 7acb1e3^{commit} && git cat-file -e 6d48081^{commit} && for f in .agents/skills/platform/artifacts/implement/2.md .agents/skills/platform/artifacts/implement/4.md .agents/skills/platform/artifacts/implement/32.md .agents/skills/platform/artifacts/implement/56.md .agents/skills/platform/artifacts/implement/101.md .agents/skills/platform/artifacts/implement/102.md; do test -f \"$f\"; done && grep -q '45d8cac' README.md"
     ],
     "skipped": [
       "Full test suite: documentation-only change; no production or test code changed."
