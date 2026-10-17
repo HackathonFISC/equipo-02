@@ -393,7 +393,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1 and ($5::text is null or lease_owner = $5)`,
         [jobId, error.code, error.message, error.retryable, leaseOwner ?? null],
       );
-      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 = 'chat_execution_failed' then 1 else 0 end, dead_letters = dead_letters + 1, session_conflicts = session_conflicts + case when $2 = 'session_version_conflict' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, error.code]);
+      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 in ('chat_execution_failed', 'chat_execution_retryable') then 1 else 0 end, provider_timeouts = provider_timeouts + case when $2 = 'chat_execution_retryable' then 1 else 0 end, dead_letters = dead_letters + 1, session_conflicts = session_conflicts + case when $2 = 'session_version_conflict' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, error.code]);
       await refreshMetrics();
     },
 
