@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { handleListSearches, handleSaveSearch } from '../../../lib/searches-handler';
+import { handleListSearches, handleMarkVacancyVisit, handleSaveSearch } from '../../../lib/searches-handler';
 import { readJsonBody } from '../../../lib/request-body';
 import { persistCandidatePreferences } from '../../../lib/neon-repository';
 import { preferencesStore } from '../../../lib/preferences-store';
@@ -34,4 +34,10 @@ export async function GET(request: Request): Promise<Response> {
   const candidateId = new URL(request.url).searchParams.get('candidateId') ?? '';
   const { status, body } = await handleListSearches(candidateId);
   return NextResponse.json(body, { status });
+}
+
+export async function PUT(request: Request): Promise<Response> {
+  const candidateId = new URL(request.url).searchParams.get('candidateId') ?? '';
+  const { status, body } = handleMarkVacancyVisit(candidateId);
+  return new NextResponse(null, { status, headers: body && typeof body === 'object' ? { 'content-type': 'application/json' } : undefined });
 }

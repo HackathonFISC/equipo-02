@@ -91,6 +91,13 @@ export async function handleListSearches(
       summary: result.summary,
     });
   }
-  visits.mark(candidateId, (deps.now ?? (() => new Date()))().toISOString());
   return { status: 200, body: { searches: views } };
+}
+
+export function handleMarkVacancyVisit(candidateId: string, deps: SearchesHandlerDeps = {}): HandlerResult {
+  if (!candidateId || candidateId.length > MAX_CANDIDATE_ID_LENGTH) {
+    return { status: 400, body: { error: 'invalid_candidate_id' } };
+  }
+  (deps.visitsStore ?? vacancyVisitsStore).mark(candidateId, (deps.now ?? (() => new Date()))().toISOString());
+  return { status: 204, body: null };
 }

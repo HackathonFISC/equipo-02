@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CandidatePreferences, ExplorationResult } from '@puente/catalog';
 import { createInMemoryPreferencesStore } from '../lib/preferences-store';
 import { createInMemorySavedSearchesStore } from '../lib/saved-searches-store';
-import { handleListSearches, handleSaveSearch } from '../lib/searches-handler';
+import { handleListSearches, handleMarkVacancyVisit, handleSaveSearch } from '../lib/searches-handler';
 import { type PreferencesDraft } from '../lib/preferences';
 import { createInMemoryVacancyVisitsStore } from '../lib/vacancy-visits-store';
 import preferencesFixture from '../../../packages/catalog/fixtures/preferences.json';
@@ -70,18 +70,32 @@ describe('handleSaveSearch / handleListSearches', () => {
 
   it('returns matches newer than the previous visit and marks the visit', async () => {
     const visitsStore = createInMemoryVacancyVisitsStore();
-    const agent = { run: vi.fn().mockResolvedValue(resultWith(['a'], '2026-10-17T09:00:00.000Z')) };
+    const searchesStore = createInMemorySavedSearchesStore();
+    const agent = { run: vi.fn() };
+    const refreshed = resultWith(['a', 'b'], '2026-10-17T09:00:00.000Z');
+    (refreshed.matches[0]!.vacancy as { postedAt: string }).postedAt = '2026-10-16T11:00:00.000Z';
+    agent.run.mockResolvedValueOnce(resultWith(['a'], '2026-10-16T11:00:00.000Z'))
+      .mockResolvedValueOnce(refreshed)
+      .mockResolvedValueOnce(resultWith(['a', 'b'], '2026-10-17T09:00:00.000Z'));
+    await handleSaveSearch({ label: 'Nueva', preferences: draft() }, { agent, searchesStore, now: NOW });
+    handleMarkVacancyVisit(preferences.candidate_id, {
+      visitsStore,
+      now: () => new Date('2026-10-16T12:00:00.000Z'),
+    });
     const first = await handleListSearches(preferences.candidate_id, {
       agent,
-      visitsStore,
-      now: () => new Date('2026-10-17T08:00:00.000Z'),
-    });
-    expect((first.body as { searches: unknown[] }).searches).toHaveLength(0);
-    const second = await handleListSearches(preferences.candidate_id, {
-      agent,
+      searchesStore,
       visitsStore,
       now: () => new Date('2026-10-17T10:00:00.000Z'),
     });
-    expect((second.body as { searches: Array<{ newSinceLastVisit: unknown[] }> }).searches).toHaveLength(0);
+    expect((first.body as { searches: Array<{ newSinceLastVisit: Array<{ vacancy: { jobId: string } }> }> }).searches[0]!.newSinceLastVisit.map((match) => match.vacancy.jobId)).toEqual(['b']);
+    handleMarkVacancyVisit(preferences.candidate_id, { visitsStore, now: () => new Date('2026-10-17T10:00:00.000Z') });
+    const second = await handleListSearches(preferences.candidate_id, {
+      agent,
+      searchesStore,
+      visitsStore,
+      now: () => new Date('2026-10-17T10:01:00.000Z'),
+    });
+    expect((second.body as { searches: Array<{ newSinceLastVisit: unknown[] }> }).searches[0]!.newSinceLastVisit).toHaveLength(0);
   });
 });

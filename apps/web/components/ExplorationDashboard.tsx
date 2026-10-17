@@ -174,6 +174,7 @@ export function ExplorationDashboard() {
       }
       const explored = body as ExplorationResult;
       window.localStorage.setItem('puente:candidateId', explored.candidateId);
+      window.localStorage.setItem('puente:preferences', JSON.stringify(explored.preferences));
       setResult(explored);
       setStatus({ loading: false });
       // Trigger the training-roadmap path only when nothing viable was found.
