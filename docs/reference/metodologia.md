@@ -45,7 +45,7 @@ Para desarrollo local:
 ```bash
 npm ci
 cp .env.example .env
-npm run dev       # intake web en http://localhost:3000
+npm run dev       # intake web en http://localhost:3001
 npm start         # runtime de postulaciones
 ```
 
