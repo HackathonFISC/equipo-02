@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@puente/agent-runtime": "*",
+    "@puente/catalog": "*",
     "@puente/domain": "*",
     "@puente/ingestion": "*",
     "@puente/profile": "*",
+    "@puente/training": "*",
     "next": "^16.4.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
