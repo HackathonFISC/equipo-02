@@ -82,8 +82,8 @@ export interface ChatJobStore {
   findByIdempotencyKey(candidateId: string, idempotencyKey: string): Promise<ChatJob | undefined>;
   get(jobId: string): Promise<ChatJob | undefined>;
   claimNext(options: ClaimChatJobOptions): Promise<ChatJob | undefined>;
-  succeed(jobId: string, result: unknown, leaseOwner?: string): Promise<void>;
-  fail(jobId: string, error: ChatJobError, leaseOwner?: string): Promise<void>;
+  succeed(jobId: string, result: unknown, leaseOwner?: string, durationSeconds?: number): Promise<void>;
+  fail(jobId: string, error: ChatJobError, leaseOwner?: string, durationSeconds?: number): Promise<void>;
   /** Release a lease without completing, so a transient failure can be retried. */
   release(jobId: string, delayMs?: number): Promise<void>;
   deleteByCandidate(candidateId: string): Promise<void>;
@@ -364,24 +364,26 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
         [leaseOwner, String(leaseMs)],
       );
       const row = result.rows[0];
+      if (row) await query("update chat_queue_metrics set attempts = attempts + 1, updated_at = now() where metric_key = 'chat'", []);
       await refreshMetrics();
       return row ? mapRow(row) : undefined;
     },
 
-    async succeed(jobId, result, leaseOwner) {
+    async succeed(jobId, result, leaseOwner, durationSeconds) {
       await query(
         `update chat_jobs
          set status = 'succeeded', result = $2::jsonb,
              error_code = null, error_message = null, error_retryable = null,
              lease_owner = null, lease_expires_at = null,
-             finished_at = now(), updated_at = now()
+              finished_at = now(), updated_at = now()
           where job_id = $1 and ($3::text is null or lease_owner = $3)`,
         [jobId, JSON.stringify(result), leaseOwner ?? null],
       );
+      if (durationSeconds !== undefined) await query("update chat_queue_metrics set duration_seconds_total = duration_seconds_total + $1, duration_samples = duration_samples + 1, updated_at = now() where metric_key = 'chat'", [durationSeconds]);
       await refreshMetrics();
     },
 
-    async fail(jobId, error, leaseOwner) {
+    async fail(jobId, error, leaseOwner, durationSeconds) {
       await query(
         `update chat_jobs
          set status = 'failed', result = null,
@@ -391,6 +393,7 @@ export function createSqlChatJobStore(query: SqlQuery): ChatJobStore {
          where job_id = $1 and ($5::text is null or lease_owner = $5)`,
         [jobId, error.code, error.message, error.retryable, leaseOwner ?? null],
       );
+      await query("update chat_queue_metrics set worker_errors = worker_errors + case when $2 = 'chat_execution_failed' then 1 else 0 end, dead_letters = dead_letters + 1, session_conflicts = session_conflicts + case when $2 = 'session_version_conflict' then 1 else 0 end, duration_seconds_total = duration_seconds_total + coalesce($1, 0), duration_samples = duration_samples + case when $1 is null then 0 else 1 end, updated_at = now() where metric_key = 'chat'", [durationSeconds ?? null, error.code]);
       await refreshMetrics();
     },
 

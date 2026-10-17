@@ -42,6 +42,7 @@ async function settle(
   job: ChatJob,
   error: ChatJobError,
   log: (entry: Record<string, unknown>) => void,
+  durationSeconds?: number,
 ): Promise<ChatJobOutcome> {
   if (error.retryable && job.attempts < job.maxAttempts) {
     const backoffMs = ([1000, 5000, 30000][Math.min(job.attempts - 1, 2)] ?? 30000) + Math.floor(Math.random() * 250);
@@ -49,7 +50,7 @@ async function settle(
     log({ event: 'chat_job_retry', jobId: job.jobId, attempts: job.attempts, code: error.code, backoffMs });
     return { outcome: 'retried', jobId: job.jobId };
   }
-  await jobs.fail(job.jobId, error, job.leaseOwner);
+  await jobs.fail(job.jobId, error, job.leaseOwner, durationSeconds);
   observeChatJob('dead_letter');
   log({ event: 'chat_job_failed', jobId: job.jobId, attempts: job.attempts, code: error.code });
   return { outcome: 'failed', jobId: job.jobId };
@@ -88,6 +89,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
   const startedAt = now();
   observeChatJob('attempt');
   const safeLog = (entry: Record<string, unknown>) => log({ requestId: job.requestId, traceId: job.traceId, jobId: job.jobId, candidateHash: candidateHash(job.candidateId), ...entry });
+  const durationSeconds = () => (now() - startedAt) / 1000;
 
   // Ordered per candidate by session version: a genuinely stale action is
   // terminal, while a future version waits for its earlier turn.
@@ -144,12 +146,12 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
   } catch (cause) {
     observeChatJob('worker_error');
     if (cause instanceof Error && /timeout/i.test(cause.message)) observeChatJob('provider_timeout');
-    return settle(jobs, job, executionFailure(cause), safeLog);
+    return settle(jobs, job, executionFailure(cause), safeLog, durationSeconds());
   }
 
   if (status === 200) {
     try {
-       await jobs.succeed(job.jobId, body, job.leaseOwner);
+        await jobs.succeed(job.jobId, body, job.leaseOwner, durationSeconds());
     } catch {
       // The session is already committed. Do not report success or execute the
       // action again; release the acknowledgement lease so a later worker can
