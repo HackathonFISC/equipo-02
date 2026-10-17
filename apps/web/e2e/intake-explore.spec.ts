@@ -154,6 +154,7 @@ test('UC-07 muestra coincidencias nuevas y registra la visita a Vacantes', async
   await expect.poll(() => acknowledged).toBe(true);
   await page.goto('/ruta');
   await expect(page.locator('.candidate-nav-link').filter({ hasText: 'Vacantes' }).first()).toContainText('1');
+  await page.goto('/vacantes');
   await page.getByRole('button', { name: 'Guardar esta búsqueda' }).click();
   await page.getByLabel('Nombre de la búsqueda').fill('Búsqueda e2e');
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
