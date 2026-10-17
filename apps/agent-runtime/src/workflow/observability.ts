@@ -214,6 +214,29 @@ export interface LangfuseClient {
   ingest(batch: LangfuseIngestionBatch): Promise<void>;
 }
 
+export interface LangfuseEnv {
+  LANGFUSE_PUBLIC_KEY?: string;
+  LANGFUSE_SECRET_KEY?: string;
+  LANGFUSE_BASE_URL?: string;
+}
+
+/** Returns a client only when both keys are set. Empty keys stay offline. */
+export function langfuseClientFromEnv(
+  env: LangfuseEnv,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): LangfuseClient | undefined {
+  const publicKey = env.LANGFUSE_PUBLIC_KEY?.trim() ?? "";
+  const secretKey = env.LANGFUSE_SECRET_KEY?.trim() ?? "";
+  if (publicKey.length === 0 || secretKey.length === 0) return undefined;
+  const baseUrl = env.LANGFUSE_BASE_URL?.trim().replace(/\/+$/, "");
+  return createLangfuseClient({
+    publicKey,
+    secretKey,
+    fetchImpl,
+    ...(baseUrl ? { baseUrl } : {}),
+  });
+}
+
 /** Posts a batch to Langfuse's public ingestion API. Tests inject fetch. */
 export function createLangfuseClient(options: {
   publicKey: string;

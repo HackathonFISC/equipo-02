@@ -1,0 +1,53 @@
+import { describe, expect, it } from "vitest";
+import type { WorkflowRunRequest } from "@workbridge/domain";
+import { createWorkflowRuntime } from "../graph";
+
+const BASE_URL = "https://langfuse.test";
+const CLOCK = "2026-10-16T12:00:00.000Z";
+
+function request(): WorkflowRunRequest {
+  return {
+    trace_id: "trace-0096",
+    idempotency_key: "idem-0096",
+    candidateText: "Experiencia en caja y atención al cliente.",
+    vacancyText: "Se busca cajero con atención al cliente.",
+    declaredCredentials: [],
+    actor: { id: "cand-96", role: "candidate" },
+    requestedTools: [],
+  };
+}
+
+describe("Langfuse ingestion from environment config", () => {
+  it("posts one ingestion batch to the configured base URL when the keys are set", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      calls.push({ url: String(input), init });
+      return new Response("ok", { status: 200 });
+    };
+    const engine = createWorkflowRuntime({
+      clock: () => CLOCK,
+      complete: async () => ({ text: "Plan de practica en caja" }),
+      langfuseEnv: {
+        LANGFUSE_PUBLIC_KEY: "pk-test",
+        LANGFUSE_SECRET_KEY: "sk-test",
+        LANGFUSE_BASE_URL: BASE_URL,
+      },
+      fetchImpl,
+    });
+
+    const result = await engine.run(request());
+
+    expect(result.status).toBe("success");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(`${BASE_URL}/api/public/ingestion`);
+    expect(calls[0]?.init?.method).toBe("POST");
+    const body = JSON.parse(String(calls[0]?.init?.body)) as {
+      batch: Array<{ id: string; type: string }>;
+    };
+    expect(body.batch.some((item) => item.type === "trace-create" && item.id === "trace-0096")).toBe(true);
+    expect(calls[0]?.init?.headers).toMatchObject({
+      Authorization: "Basic cGstdGVzdDpzay10ZXN0",
+      "Content-Type": "application/json",
+    });
+  });
+});

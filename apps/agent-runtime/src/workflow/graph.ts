@@ -28,7 +28,9 @@ import {
   AppendOnlyAuditLog,
   DqlStore,
   LangfuseRecorder,
+  langfuseClientFromEnv,
   type LangfuseClient,
+  type LangfuseEnv,
 } from "./observability";
 
 export const WORKFLOW_ID = "workbridge-employability";
@@ -61,6 +63,10 @@ export interface WorkflowDependencies {
   catalog?: readonly string[];
   clock?: () => string;
   langfuse?: LangfuseClient;
+  /** When `langfuse` is omitted, keys in this env (or `process.env`) enable ingestion. */
+  langfuseEnv?: LangfuseEnv;
+  /** Transport for env-configured Langfuse. Tests stub this so no network call is made. */
+  fetchImpl?: typeof fetch;
   /** Matching service used when the caller supplies validated matching input. */
   matching?: MatchingService;
   matchingEnv?: MatchingEnv;
@@ -111,7 +117,9 @@ export class WorkflowRuntime {
 
   constructor(deps: WorkflowDependencies) {
     this.clock = deps.clock ?? (() => new Date().toISOString());
-    this.langfuse = deps.langfuse;
+    this.langfuse =
+      deps.langfuse ??
+      langfuseClientFromEnv(deps.langfuseEnv ?? (process.env as LangfuseEnv), deps.fetchImpl);
     this.matching = deps.matching ?? createMatchingService(
       matchingConfigFromEnv(deps.matchingEnv ?? (process.env as MatchingEnv)),
     );
