@@ -3,6 +3,7 @@ import {
   assertAuditEvent,
   assertMatchDecision,
   assertWorkflowEnvelope,
+  makeCandidateId,
   type AuditEvent,
   type MatchDecision,
 } from "@workbridge/domain";
@@ -12,6 +13,13 @@ import { parseEvidence, type EvidenceItem } from "./evidence";
 import { counselorGateReasons, type GateReason } from "./gates";
 import { actorFromBetterAuthSession, type Actor, type AuthRole } from "./roles";
 import { assertNoSecrets } from "./secrets";
+import {
+  createMemoryNotificationOutbox,
+  createMockNotificationPort,
+  type NotificationOutbox,
+  type NotificationPort,
+  type OutboundNotification,
+} from "./notification";
 import { createMemoryIdempotencyStore, type IdempotencyStore } from "./store";
 import type { ShortlistSource } from "./shortlist";
 
@@ -42,12 +50,24 @@ export interface DraftView {
   vacancyTitle: string;
   candidateDisplayName?: string;
   evidence: EvidenceItem[];
+  /** Every item declared on the draft, including ones the candidate has unchecked. */
+  availableEvidence: EvidenceItem[];
   status: "open" | "rejected" | "submitted";
   documents: ApplicationDocuments;
   counselorGate: GateReason[];
   candidateApproved: boolean;
   counselorApproved: boolean;
   history: HistoryEntry[];
+  submissionId?: string;
+  interview?: SubmitView["interview"];
+}
+
+/** What the owning candidate can read after sending an application. Employers keep GET /submissions/:id. */
+export interface CandidateSubmissionView {
+  submissionId: string;
+  draftId: string;
+  interview: SubmitView["interview"];
+  submittedAt: string;
 }
 
 export interface SubmitView {
@@ -122,6 +142,8 @@ export interface ApplicationServiceOptions {
   sessionSecret?: string;
   idempotency?: IdempotencyStore<SubmitView>;
   shortlist?: ShortlistSource;
+  outbox?: NotificationOutbox;
+  notifications?: NotificationPort;
 }
 
 export class ApplicationService {
@@ -131,6 +153,9 @@ export class ApplicationService {
   private readonly sessionSecret: string;
   private readonly idempotency: IdempotencyStore<SubmitView>;
   private readonly shortlist: ShortlistSource | undefined;
+  private readonly outbox: NotificationOutbox;
+  private readonly notifications: NotificationPort;
+  private readonly notificationActions = new Map<string, Promise<void>>();
   private readonly drafts = new Map<string, StoredDraft>();
   private readonly submissions = new Map<string, StoredSubmission>();
   private readonly events: AuditEvent[] = [];
@@ -142,13 +167,15 @@ export class ApplicationService {
     this.sessionSecret = options.sessionSecret ?? "";
     this.idempotency = options.idempotency ?? createMemoryIdempotencyStore<SubmitView>();
     this.shortlist = options.shortlist;
+    this.outbox = options.outbox ?? createMemoryNotificationOutbox();
+    this.notifications = options.notifications ?? createMockNotificationPort();
   }
 
   createDraft(session: unknown, raw: unknown): DraftView {
     const actor = this.actor(session);
     this.requireRole(actor, "candidate", "Only a candidate can draft an application.");
     const input = this.parseDraftInput(raw);
-    if (actor.id !== input.candidateId) {
+    if (!this.ownsCandidate(actor, input.candidateId)) {
       throw new ApplicationError("A candidate can only draft their own application.", 403, "forbidden");
     }
     const draft: StoredDraft = {
@@ -213,6 +240,10 @@ export class ApplicationService {
   }
 
   async submit(session: unknown, draftId: string, raw: unknown): Promise<SubmitView> {
+    return this.serializeNotificationAction(`draft:${draftId}`, () => this.submitDraft(session, draftId, raw));
+  }
+
+  private async submitDraft(session: unknown, draftId: string, raw: unknown): Promise<SubmitView> {
     const actor = this.actor(session);
     this.requireRole(actor, "candidate", "Only the candidate can submit the application.");
     const draft = this.draftById(draftId);
@@ -255,15 +286,19 @@ export class ApplicationService {
       interview: "pending_employer_approval",
       history: [...draft.history, this.historyEntry(actor, "submission", action.reason)],
     };
+    await this.notify(actor, "submission", action, "employer");
     draft.status = "submitted";
     this.submissions.set(submission.id, submission);
-    this.audit(actor, "submission", action);
     const view = this.submitView(submission, false);
     await this.idempotency.put({ key: action.idempotencyKey, fingerprint, response: view });
     return view;
   }
 
-  decideInterview(session: unknown, submissionId: string, raw: unknown): SubmitView {
+  async decideInterview(session: unknown, submissionId: string, raw: unknown): Promise<SubmitView> {
+    return this.serializeNotificationAction(`interview:${submissionId}`, () => this.recordInterviewDecision(session, submissionId, raw));
+  }
+
+  private async recordInterviewDecision(session: unknown, submissionId: string, raw: unknown): Promise<SubmitView> {
     const actor = this.actor(session);
     this.requireRole(actor, "employer", "Only an employer can decide interview progression.");
     const submission = this.submissionById(submissionId);
@@ -276,9 +311,9 @@ export class ApplicationService {
       throw new ApplicationError("Interview progression was already decided.", 409, "interview_decided");
     }
     if (decision === "rejected") {
+      await this.notify(actor, "rejection", action, "candidate");
       submission.employerRejection = this.decision(actor, action.reason, []);
       submission.interview = "rejected";
-      this.audit(actor, "rejection", action);
       submission.history.push(this.historyEntry(actor, "rejection", action.reason));
     } else if (!submission.employerApproval) {
       throw new ApplicationError(
@@ -287,8 +322,8 @@ export class ApplicationService {
         "employer_approval_required",
       );
     } else {
+      await this.notify(actor, "approval", action, "candidate");
       submission.interview = "approved";
-      this.audit(actor, "approval", action);
       submission.history.push(this.historyEntry(actor, "approval", action.reason));
     }
     return this.submitView(submission, false);
@@ -311,6 +346,14 @@ export class ApplicationService {
     return this.submitView(submission, false);
   }
 
+  async outboundNotifications(session: unknown, traceId: string): Promise<readonly OutboundNotification[]> {
+    this.actor(session);
+    if (traceId.trim() === "") {
+      throw new ApplicationError("traceId is required.", 422, "invalid_input");
+    }
+    return this.outbox.list(traceId);
+  }
+
   auditTrail(session: unknown, traceId: string): AuditEvent[] {
     this.actor(session);
     if (traceId.trim() === "") {
@@ -329,7 +372,7 @@ export class ApplicationService {
       );
     } else {
       this.requireRole(actor, "candidate", "Only the candidate can list their drafts.");
-      if (!query.candidateId || query.candidateId !== actor.id) {
+      if (!query.candidateId || !this.ownsCandidate(actor, query.candidateId)) {
         throw new ApplicationError("A candidate can only list their own drafts.", 403, "forbidden");
       }
       drafts = [...this.drafts.values()].filter((draft) => draft.ownerId === actor.id);
@@ -369,6 +412,28 @@ export class ApplicationService {
           traceId: draft.input.traceId,
         };
       });
+  }
+
+  /** Candidate-owned read of the interview decision. Does not return documents or another employer's review. */
+  readOwnSubmission(session: unknown, draftId: string): CandidateSubmissionView {
+    const actor = this.actor(session);
+    this.requireRole(actor, "candidate", "Only the candidate can read their submission.");
+    const draft = this.draftById(draftId);
+    if (actor.id !== draft.ownerId) {
+      throw new ApplicationError("A candidate can only read their own submission.", 403, "forbidden");
+    }
+    const submission = this.submissionForDraft(draft.id);
+    if (!submission) {
+      throw new ApplicationError("This draft has not been submitted.", 404, "not_found");
+    }
+    const view: CandidateSubmissionView = {
+      submissionId: submission.id,
+      draftId: draft.id,
+      interview: submission.interview,
+      submittedAt: this.submissionTimestamp(submission),
+    };
+    this.guard(view);
+    return view;
   }
 
   readSubmission(session: unknown, submissionId: string): SubmitView {
@@ -423,6 +488,11 @@ export class ApplicationService {
     if (actor.role !== role) throw new ApplicationError(message, 403, "forbidden");
   }
 
+  /** The session user id and makeCandidateId(user.id) name the same candidate. */
+  private ownsCandidate(actor: Actor, candidateId: string): boolean {
+    return actor.id === candidateId || makeCandidateId(actor.id) === candidateId;
+  }
+
   /** Candidate owner or counselor. Employer is refused for both approval and rejection. */
   private requireDraftParty(actor: Actor, draft: StoredDraft, action: "approve" | "reject"): void {
     if (actor.role === "counselor") return;
@@ -464,6 +534,19 @@ export class ApplicationService {
     const submission = this.submissions.get(submissionId);
     if (!submission) throw new ApplicationError("Submission not found.", 404, "not_found");
     return submission;
+  }
+
+  private submissionForDraft(draftId: string): StoredSubmission | undefined {
+    for (const submission of this.submissions.values()) {
+      if (submission.draftId === draftId) return submission;
+    }
+    return undefined;
+  }
+
+  private submissionTimestamp(submission: StoredSubmission): string {
+    const entry = [...submission.history].reverse().find((item) => item.action === "submission");
+    if (!entry) throw new ApplicationError("Submission has no timestamp.", 500, "internal_error");
+    return entry.timestamp;
   }
 
   private parseDraftInput(raw: unknown): DraftInput {
@@ -605,6 +688,8 @@ export class ApplicationService {
       selectedIds: draft.selectedEvidenceIds,
       match: draft.input.match,
     });
+    const submission = this.submissionForDraft(draft.id);
+    const history = submission?.history ?? draft.history;
     const view: DraftView = {
       draftId: draft.id,
       candidateId: draft.input.candidateId,
@@ -614,12 +699,14 @@ export class ApplicationService {
       vacancyTitle: draft.input.vacancyTitle,
       candidateDisplayName: draft.input.candidateDisplayName,
       evidence: draft.input.evidence.filter((item) => draft.selectedEvidenceIds.includes(item.id)),
+      availableEvidence: draft.input.evidence,
       status: draft.status,
       documents,
       counselorGate: this.counselorGate(draft),
       candidateApproved: draft.candidateApproval !== undefined,
       counselorApproved: draft.counselorApproval !== undefined,
-      history: draft.history.map(({ actorRole, timestamp, reason, action }) => ({ actorRole, timestamp, reason, action })),
+      history: history.map(({ actorRole, timestamp, reason, action }) => ({ actorRole, timestamp, reason, action })),
+      ...(submission ? { submissionId: submission.id, interview: submission.interview } : {}),
     };
     this.guard(view);
     return view;
@@ -655,6 +742,43 @@ export class ApplicationService {
         }),
       )
       .digest("hex");
+  }
+
+  private async notify(
+    actor: Actor,
+    action: AuditEvent["action"],
+    input: ActionInput,
+    recipientRole: OutboundNotification["recipientRole"],
+  ): Promise<void> {
+    const notification: OutboundNotification = {
+      recipientRole,
+      channel: "in_app",
+      timestamp: this.clock(),
+      traceId: input.traceId,
+    };
+    this.guard(notification);
+    await this.outbox.append(notification);
+    this.audit(actor, action, input);
+    // The persisted outbox is authoritative; delivery failures must not undo the action.
+    try {
+      await this.notifications.send(notification);
+    } catch {
+      // Keep the row available for a later delivery attempt.
+    }
+  }
+
+  private async serializeNotificationAction<T>(key: string, action: () => Promise<T>): Promise<T> {
+    const previous = this.notificationActions.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    this.notificationActions.set(key, current);
+    await previous;
+    try {
+      return await action();
+    } finally {
+      release();
+      if (this.notificationActions.get(key) === current) this.notificationActions.delete(key);
+    }
   }
 
   private audit(actor: Actor, action: AuditEvent["action"], input: ActionInput): void {
