@@ -2,6 +2,7 @@
 
 import type { ExplorationResult } from '@puente/catalog';
 import type { Roadmap } from '@puente/training';
+import type { MatchDecision } from '@puente/solver';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiClientError } from '../lib/api/errors';
@@ -9,6 +10,7 @@ import type { PreferencesDraft } from '../lib/preferences';
 import { useExploreVacancies } from '../lib/queries/exploration';
 import { useDeleteCandidateData } from '../lib/queries/preferences';
 import { useRequestRoadmap } from '../lib/queries/roadmap';
+import { useMatchVacancies } from '../lib/queries/match';
 import { searchesQueryKey, useSaveSearchMutation, useSavedSearches } from '../lib/queries/searches';
 import { Card } from './ui/card';
 import { NoMatchPanel } from './exploration/NoMatchPanel';
@@ -81,10 +83,12 @@ export function ExplorationDashboard() {
   const [submitError, setSubmitError] = useState<string | undefined>();
   const [searchLabel, setSearchLabel] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [decisions, setDecisions] = useState<MatchDecision[]>([]);
 
   const queryClient = useQueryClient();
   const exploreMutation = useExploreVacancies();
   const roadmapMutation = useRequestRoadmap();
+  const matchMutation = useMatchVacancies();
   const deleteMutation = useDeleteCandidateData();
   const saveSearchMutation = useSaveSearchMutation(result?.candidateId);
 
@@ -102,6 +106,8 @@ export function ExplorationDashboard() {
       window.localStorage.setItem('puente:candidateId', explored.candidateId);
       window.localStorage.setItem('puente:preferences', JSON.stringify(explored.preferences));
       setResult(explored);
+      setDecisions([]);
+      void matchMutation.mutateAsync(explored.matches.map((match) => match.vacancy.jobId)).then((body) => setDecisions(body.decisions)).catch(() => setDecisions([]));
       if (explored.noMatch?.roadmapRequested) {
         try {
           const body = await roadmapMutation.mutateAsync(explored);
@@ -166,7 +172,7 @@ export function ExplorationDashboard() {
         ) : null}
       </div>
 
-      {result ? <VacancyList result={result} /> : null}
+      {result ? <VacancyList result={result} decisions={decisions} decisionsLoading={matchMutation.isPending} /> : null}
       {result ? <NoMatchPanel result={result} roadmap={roadmap} /> : null}
       {result ? (
         <SavedSearches
