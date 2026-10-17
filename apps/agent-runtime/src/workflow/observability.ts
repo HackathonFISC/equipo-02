@@ -173,8 +173,8 @@ export class LangfuseRecorder {
   private flushed: ReturnType<LangfuseRecorder["toIngestionBatch"]> | null = null;
 
   /** Build the ingestion batch and keep it so a run can prove the flush happened. */
-  flush(): ReturnType<LangfuseRecorder["toIngestionBatch"]> {
-    this.flushed = this.toIngestionBatch();
+  flush(traceId?: string): ReturnType<LangfuseRecorder["toIngestionBatch"]> {
+    this.flushed = this.toIngestionBatch(traceId);
     return this.flushed;
   }
 
@@ -182,11 +182,12 @@ export class LangfuseRecorder {
     return this.flushed;
   }
 
-  toIngestionBatch(): {
+  toIngestionBatch(traceId?: string): {
     batch: Array<{ id: string; type: "trace-create" | "span-create"; timestamp: string; body: unknown }>;
   } {
     const batch: Array<{ id: string; type: "trace-create" | "span-create"; timestamp: string; body: unknown }> = [];
     for (const trace of this.traces.values()) {
+      if (traceId !== undefined && trace.id !== traceId) continue;
       batch.push({
         id: trace.id,
         type: "trace-create",
@@ -195,6 +196,7 @@ export class LangfuseRecorder {
       });
     }
     for (const span of this.spans) {
+      if (traceId !== undefined && span.traceId !== traceId) continue;
       batch.push({
         id: span.id,
         type: "span-create",
@@ -255,6 +257,7 @@ export function createLangfuseClient(options: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) {
         throw new Error(`Langfuse ingestion failed: ${response.status}`);

@@ -239,7 +239,7 @@ export class WorkflowRuntime {
         auditedVacancies: carrier.auditedVacancies ?? [],
         ...(carrier.roadmapResult ? { roadmap: carrier.roadmapResult } : {}),
       };
-      this.lastIngestion = this.traces.flush();
+      this.lastIngestion = this.traces.flush(input.trace_id);
       if (this.langfuse) {
         try {
           await this.langfuse.ingest(this.lastIngestion);
