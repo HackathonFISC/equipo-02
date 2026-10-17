@@ -1,10 +1,9 @@
-import type { IntakeResult } from '@puente/domain';
+import type { CandidateCertification, IntakeResult } from '@puente/domain';
 import {
   buildProfile,
   heuristicProfileExtractor,
   provenanceForIntakeKind,
   type ProfileExtractor,
-  type CandidateCertification,
 } from '@puente/profile';
 import { extractText, type OcrAdapter, type PdfExtractor, type RawIntake } from '@puente/ingestion';
 import { verifyCredential, type CredentialInput, type VerifyDeps, type CredentialVerification } from './verification/index';
@@ -49,7 +48,7 @@ export class ProfileAgent {
       now: this.options.now,
     });
 
-    const profileResult = buildProfile(
+    const profileResult = await buildProfile(
       {
         text,
         source,
@@ -92,7 +91,7 @@ export class ProfileAgent {
           };
           const verification = await verifier(input, deps);
           // Map the verification status to the certification status
-          const statusMap: Record<string, string> = {
+           const statusMap: Record<string, CandidateCertification['status']> = {
             verified: 'verified',
             declared: 'declared',
             unverified: 'unverified',
