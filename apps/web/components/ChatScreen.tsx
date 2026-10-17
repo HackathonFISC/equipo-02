@@ -232,7 +232,7 @@ export function ChatScreen() {
         handle.pollAfterMs = statusBody.pollAfterMs ?? handle.pollAfterMs;
       }
       if (!turn) throw new Error('chat_request_failed');
-      sessionVersion.current += 1;
+      if (typeof (handle as { sessionVersion?: number; version?: number }).sessionVersion !== 'number' && typeof (handle as { sessionVersion?: number; version?: number }).version !== 'number') sessionVersion.current += 1;
       const nextState = applyTurn(slotState, turn.slotUpdates, request.action);
       setSlotState(nextState);
       setPhase(turn.phase);
