@@ -5,7 +5,11 @@
 **Owner:** MateoDG2006  
 **Parent spec:** #32  
 **Labels:** `ready-for-agent`  
-**Metadata:** work_type=Ticket; repo_scope=profile; phase=build; priority=high; risk=medium; sprint=hackathon  
+**Metadata**
+
+- Project: none
+- Fields: `work_type` = Ticket; `repo_scope` = profile; `phase` = build; `priority` = high; `risk` = medium; `sprint` = hackathon  ; `release_train` = none
+- Todo: none
 **Docs:** [Spec (AC-07, R2)](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/spec.md) · [OQ-2 decision](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/open-questions.md#oq-2--combining-chat-and-cv)
 
 ## Context

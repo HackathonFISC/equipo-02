@@ -5,7 +5,11 @@
 **Owner:** MateoDG2006  
 **Parent spec:** #32  
 **Labels:** `ready-for-agent`  
-**Metadata:** work_type=Ticket; repo_scope=web; phase=build; priority=high; risk=medium; sprint=hackathon  
+**Metadata**
+
+- Project: none
+- Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = high; `risk` = medium; `sprint` = hackathon  ; `release_train` = none
+- Todo: none
 **Docs:** [Screens S3, S4, S13](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/screens.md#s3--vacantes-vacantes) · [State matrix](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#state-matrix) · [Components](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/design-system.md#components)
 
 ## Context

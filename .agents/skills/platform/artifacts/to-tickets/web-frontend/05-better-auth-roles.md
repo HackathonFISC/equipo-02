@@ -5,7 +5,11 @@
 **Owner:** MateoDG2006  
 **Parent spec:** #32  
 **Labels:** `ready-for-agent`  
-**Metadata:** work_type=Ticket; repo_scope=web; phase=build; priority=high; risk=high; sprint=hackathon  
+**Metadata**
+
+- Project: none
+- Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = high; `risk` = high; `sprint` = hackathon  ; `release_train` = none
+- Todo: none
 **Docs:** [Architecture: authentication](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/architecture.md#authentication-better-auth) · [Screen S8](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/screens.md#s8--ingresar-ingresar) · [Flow J10](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/ux-flows.md#authentication-j10) · [OQ-3, OQ-11](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/open-questions.md)
 
 ## Context

@@ -5,7 +5,11 @@
 **Owner:** MateoDG2006  
 **Parent spec:** #32  
 **Labels:** `ready-for-agent`  
-**Metadata:** work_type=Ticket; repo_scope=web; phase=build; priority=high; risk=medium; sprint=hackathon  
+**Metadata**
+
+- Project: none
+- Fields: `work_type` = Ticket; `repo_scope` = web; `phase` = build; `priority` = high; `risk` = medium; `sprint` = hackathon  ; `release_train` = none
+- Todo: none
 **Docs:** [Design system](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/docs/reference/frontend/design-system.md) · [ADR-0007](https://github.com/HackathonFISC/equipo-02/blob/docs/frontend-spec/.agents/adr/0007-web-styling-tailwind-shadcn.md)
 
 ## Context

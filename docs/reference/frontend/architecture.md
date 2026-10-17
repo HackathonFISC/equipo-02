@@ -207,16 +207,18 @@ lib/chat/
 
 ## Authentication (Better Auth)
 
-- `lib/auth.ts` (server): `betterAuth({ database: Neon, user: { additionalFields: { role: { type: 'string', defaultValue: 'candidate', input: false } } }, plugins: [anonymous()] })`. Linking Google or a magic-link email keeps the same `user.id`, which is the candidate id (OQ-3).
+- `lib/auth.ts` (server): `betterAuth({ database: Neon, socialProviders: { google: ... }, emailAndPassword: { enabled: false }, plugins: [magicLink(...), anonymous()] })`. The only account-linking methods exposed by `/ingresar` are Google (`Continuar con Google`) and an email magic link; password and other providers are not enabled (AC-75). Linking either method keeps the same `user.id`, which is the candidate id (OQ-3).
+  The Better Auth user schema declares `employerOrgId` as a nullable server-managed field alongside `role`; it is included in the signed `BetterAuthSession.user` shape for employers and is never accepted from browser input (AC-71, AC-76, NG5).
   `input: false` stops clients from choosing a role at sign-up (NG5, R14).
 - `lib/auth-client.ts` (client): `createAuthClient()` for sign-in/out and `useSession`.
 - BFF: `app/api/applications/[...path]/route.ts` gets the session, maps it to the runtime's
   `BetterAuthSession` shape, signs it with `signBetterAuthSession(session, BETTER_AUTH_SESSION_SECRET)`,
   forwards method/path/body to `AGENT_RUNTIME_URL`, and adds `traceId` + `idempotencyKey` when the
   client omitted them (submission keys are generated client-side once per draft and reused on retry, AC-61).
-- Roles: `role` is never user-settable (`input: false`); `scripts/seed-roles.ts` (per environment) creates
-  counselor and employer users, sets `role` and `employerOrgId`, and links seeded vacancies to the
-  organization (OQ-11). Employers additionally carry `employerOrgId` in the signed session (OQ-10).
+- Roles: `role` and `employerOrgId` are never user-settable (`input: false`); `scripts/seed-roles.ts`
+  (per environment) creates counselor and employer users, sets both server-side fields, and links
+  seeded vacancies to the organization (OQ-11). Employers additionally carry `employerOrgId` in the
+  signed session (OQ-10), and the BFF/runtime reject cross-organization reads with 403 (AC-71).
 - Env: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BETTER_AUTH_SESSION_SECRET` (shared with runtime),
   `AGENT_RUNTIME_URL`, `OPENROUTER_*`, `DATABASE_URL`. None are `NEXT_PUBLIC_*`.
 
