@@ -40,8 +40,6 @@ flowchart LR
   profile -. envelope / span .-> trace
   market -. envelope / span .-> trace
   training -. envelope / span .-> trace
-  exploration -. audit event .-> audit
-  profile -. audit event .-> audit
   market -. audit event .-> audit
   training -. audit event .-> audit
   match -->|draft input| drafts
@@ -56,8 +54,11 @@ flowchart LR
 
 The execution plane runs in this order: `exploration` →
 `profile_and_evidence` → `market_and_matching` → `training`. Every step emits
-an agent envelope, lifecycle record, trace span, and audit event. Guardrails
-screen requested tools, permissions, inputs, model output, and tool results;
+an agent envelope, lifecycle record, and trace span. Audit events are emitted
+for the matching and training paths shown above, and for model-completion and
+guardrail outcomes where applicable; the deterministic Exploration and Profile
+paths publish their result without an audit event. Guardrails screen requested
+tools, permissions, inputs, model output, and tool results;
 `submit_application`, `progress_interview`, and `send_message` remain denied to
 agents.
 
