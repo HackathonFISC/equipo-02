@@ -220,11 +220,13 @@ export function ChatScreen() {
         setActivity(handle.status === 'running' ? 'Estoy procesando tu respuesta…' : 'Tu respuesta está en cola…');
         await new Promise((resolve) => window.setTimeout(resolve, Math.max(250, handle.pollAfterMs ?? 1000)));
         const statusResponse = await fetch(handle.statusUrl ?? `/api/v1/chat/turns/${encodeURIComponent(handle.jobId)}`, { headers: { 'x-request-id': crypto.randomUUID() } });
-        const statusBody = await statusResponse.json() as { status?: string; result?: ChatTurn; error?: { retryable?: boolean; message?: string }; pollAfterMs?: number };
+        const statusBody = await statusResponse.json() as { status?: string; sessionVersion?: number; version?: number; result?: ChatTurn; error?: { retryable?: boolean; message?: string }; pollAfterMs?: number };
         if (!statusResponse.ok || statusBody.status === 'failed') {
           if (statusBody.error?.retryable) throw new Error('chat_request_retryable');
           throw new Error(statusBody.error?.message ?? 'chat_request_failed');
         }
+        if (typeof statusBody.sessionVersion === 'number') sessionVersion.current = statusBody.sessionVersion;
+        else if (typeof statusBody.version === 'number') sessionVersion.current = statusBody.version;
         if (statusBody.result) turn = statusBody.result;
         handle.status = statusBody.status;
         handle.pollAfterMs = statusBody.pollAfterMs ?? handle.pollAfterMs;
