@@ -17,7 +17,7 @@
     "skipped": [],
     "notes": "Documentation-only change; deployment commands and links were reviewed against Dockerfile, vercel.json, package.json, and existing runtime documentation."
   },
-  "commitSha": "c50b136",
+  "commitSha": "26cc2d5",
   "branch": "docs/issue-103-methodology",
   "nextConsumer": "publish-open-pr",
   "riskRemaining": "The deployed environment itself was not exercised; local repository validation passed.",
