@@ -32,13 +32,14 @@ export function VacantesView({ result = null, loading = false }: VacantesViewPro
   useEffect(() => {
     const candidateId = window.localStorage.getItem('puente:candidateId');
     if (!candidateId || result) return;
-    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`).then((response) => response.ok ? response.json() : null).then((body: { searches?: Array<{ matches: ExplorationResult['matches']; summary: ExplorationResult['summary']; newSinceLastVisit: ExplorationResult['matches'] }> } | null) => {
+    fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`).then((response) => response.ok ? response.json() : null).then(async (body: { searches?: Array<{ matches: ExplorationResult['matches']; summary: ExplorationResult['summary']; newSinceLastVisit: ExplorationResult['matches'] }> } | null) => {
       const view = body?.searches?.[0];
       if (view) {
         setNewMatches(view.newSinceLastVisit);
         setLoadedResult({ matches: view.matches, summary: view.summary, excluded: [], noMatch: null } as unknown as ExplorationResult);
       }
-      fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`, { method: 'PUT' }).catch(() => undefined);
+      const visitResponse = await fetch(`/api/searches?candidateId=${encodeURIComponent(candidateId)}`, { method: 'PUT' });
+      if (!visitResponse.ok) setSaveMessage('No se pudo registrar tu visita.');
     }).catch(() => undefined);
   }, [result]);
 
