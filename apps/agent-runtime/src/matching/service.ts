@@ -67,7 +67,18 @@ export class MatchingService {
 
   /** Geocode the candidate's home location to the solver's `GeoPoint`. */
   async geocodeHome(context: CandidateMatchContext): Promise<GeoPoint> {
-    return (await this.deps.geocoding.geocode(context.home)).point;
+    return this.requireGeocode(this.deps.geocoding.geocode(context.home), "candidate home");
+  }
+
+  private async requireGeocode(
+    resultPromise: Promise<Awaited<ReturnType<GeocodingPort["geocode"]>>>,
+    subject: string,
+  ): Promise<GeoPoint> {
+    const result = await resultPromise;
+    if (result.source === "default") {
+      throw new MatchingInputError(`Unable to geocode ${subject}: no location matched.`);
+    }
+    return result.point;
   }
 
   private async vacancyInputs(
@@ -80,7 +91,10 @@ export class MatchingService {
         skipped.push(vacancy.document.vacancyId);
         continue;
       }
-      const point = (await this.deps.geocoding.geocode(vacancy.document.location)).point;
+      const point = await this.requireGeocode(
+        this.deps.geocoding.geocode(vacancy.document.location),
+        `vacancy ${vacancy.document.vacancyId}`,
+      );
       inputs.push(toSolverVacancy(vacancy.document, vacancy.context, point));
     }
     return { inputs, skipped };
@@ -122,9 +136,17 @@ export class MatchingService {
     vacancy: VacancyMatchInput,
     options: EvaluatePairOptions = {},
   ): Promise<MatchDecision> {
+    if (!isVacancyRankable(vacancy.document)) {
+      throw new MatchingInputError(
+        `Vacancy ${vacancy.document.vacancyId} is blocked and cannot be evaluated.`,
+      );
+    }
     const home = await this.geocodeHome(context);
     const candidate = toSolverCandidate(profile, context, home);
-    const point = (await this.deps.geocoding.geocode(vacancy.document.location)).point;
+    const point = await this.requireGeocode(
+      this.deps.geocoding.geocode(vacancy.document.location),
+      `vacancy ${vacancy.document.vacancyId}`,
+    );
     const solverVacancy = toSolverVacancy(vacancy.document, vacancy.context, point);
 
     return evaluateMatch(candidate, solverVacancy, {

@@ -43,7 +43,7 @@ describe("createLocalGeocoder", () => {
     expect(result.point).toEqual({ lat: 8.8803, lng: -79.7833 });
   });
 
-  it("defaults to Panama City when nothing matches", async () => {
+  it("records an explicit fallback when nothing matches", async () => {
     const result = await createLocalGeocoder().geocode(location(null, null, "Remoto"));
     expect(result).toEqual({ point: DEFAULT_GEO_POINT, source: "default", matchedOn: null });
   });

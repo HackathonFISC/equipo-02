@@ -55,6 +55,17 @@ describe("MatchingService.evaluatePair", () => {
     );
     expect(result.routing.source).toBe("google_maps");
   });
+
+  it("does not evaluate blocked vacancies", async () => {
+    await expect(
+      offlineService().evaluatePair(
+        candidateProfile(),
+        CANDIDATE_CONTEXT,
+        { document: await blockedDocument(), context: VACANCY_CONTEXT },
+        { now },
+      ),
+    ).rejects.toMatchObject({ code: "matching_input" });
+  });
 });
 
 describe("MatchingService.nominateForCandidate", () => {
