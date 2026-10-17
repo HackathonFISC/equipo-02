@@ -17,8 +17,21 @@ import {
   estimateTokens,
   type ModelRouter,
 } from "./models";
+import type { Aptitude } from "@puente/solver";
 import type { AppendOnlyAuditLog, DqlRecord, DqlStore, LangfuseRecorder } from "./observability";
-import type { CandidateNominationInput, MatchingService } from "../matching";
+import {
+  toSolverCandidate,
+  toSolverVacancy,
+  type CandidateNominationInput,
+  type MatchingService,
+} from "../matching";
+import {
+  buildRoadmap,
+  deriveGaps,
+  type Roadmap,
+  type TrainingCatalog,
+  type TrainingPreferences,
+} from "@puente/training";
 
 export interface WorkflowStreamEvent {
   event: "envelope" | "lifecycle" | "trace";
@@ -32,6 +45,10 @@ export interface WorkflowServices {
   router: ModelRouter;
   /** Optional validated matching seam for the market-and-matching step. */
   matching?: MatchingService;
+  /** Cached training catalog used to build the roadmap. */
+  trainingCatalog?: TrainingCatalog;
+  /** Training preferences used to build the roadmap. */
+  trainingPreferences?: TrainingPreferences;
   clock: () => string;
   envelopes: AgentEnvelope[];
   emit?: (event: WorkflowStreamEvent) => void;
@@ -100,6 +117,20 @@ function promptFor(agent: AgentId, carrier: Carrier): string {
     `Vacancy: ${redactPii(carrier.vacancyText).slice(0, 400)}`,
     "Reply with a short employability note and no contact details.",
   ].join(" ");
+}
+
+/** The lowest (least apt) band across decisions; an apt result never outranks a gap. */
+function worstAptitude(decisions: readonly { aptitude: Aptitude }[]): Aptitude {
+  const rank: Record<Aptitude, number> = {
+    not_currently_apt: 0,
+    apt_with_gaps: 1,
+    apt: 2,
+  };
+  let worst: Aptitude = "apt";
+  for (const decision of decisions) {
+    if (rank[decision.aptitude] < rank[worst]) worst = decision.aptitude;
+  }
+  return worst;
 }
 
 function reject(
@@ -226,6 +257,7 @@ export async function runAgent(
     });
     return {
       ...carrier,
+      matchResult: nomination,
       summaries: [...carrier.summaries, { agent, summary }],
       status: carrier.status,
     };
@@ -287,8 +319,52 @@ export async function runAgent(
       summary: completion.text,
       modelId: completion.modelId,
     });
+
+    let roadmapResult: Roadmap | undefined;
+    if (
+      agent === "training" &&
+      carrier.matchResult &&
+      carrier.matchingInput &&
+      services.trainingCatalog &&
+      services.trainingPreferences
+    ) {
+      const input = carrier.matchingInput as CandidateNominationInput;
+      const nomination = carrier.matchResult;
+      const decisions = nomination.result.decisions;
+      const targetVacancyId =
+        nomination.result.assignments[0]?.vacancyId ??
+        decisions[0]?.vacancyId ??
+        input.vacancies[0]?.document.vacancyId ??
+        null;
+      const vacancyInput = input.vacancies.find((item) => item.document.vacancyId === targetVacancyId);
+      if (vacancyInput) {
+        const candidate = toSolverCandidate(input.profile, input.context, nomination.home);
+        const vacancyPoint = nomination.geocoding.vacancies[vacancyInput.document.vacancyId]?.point;
+        if (vacancyPoint) {
+          const solverVacancy = toSolverVacancy(
+            vacancyInput.document,
+            vacancyInput.context,
+            vacancyPoint,
+          );
+          const gaps = deriveGaps({ candidate, vacancy: solverVacancy });
+          roadmapResult = await buildRoadmap(
+            {
+              candidateId: nomination.candidateId,
+              targetVacancyId,
+              aptitude: worstAptitude(decisions),
+              gaps,
+              preferences: services.trainingPreferences,
+            },
+            services.trainingCatalog,
+            { now: () => new Date(services.clock()) },
+          );
+        }
+      }
+    }
+
     return {
       ...carrier,
+      ...(roadmapResult ? { roadmapResult } : {}),
       summaries: [...carrier.summaries, { agent, summary: completion.text }],
       modelFallbacks: [
         ...carrier.modelFallbacks,
