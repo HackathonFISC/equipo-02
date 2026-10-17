@@ -1,0 +1,33 @@
+{
+  "status": "blocked",
+  "identifier": "26",
+  "prNumber": 26,
+  "branch": "feat/issue-20-integrate-solver-seam-agent-runtime-geocoding-google-maps",
+  "fixedPoint": "main",
+  "planComment": "https://github.com/HackathonFISC/equipo-02/pull/26#issuecomment-6227998080",
+  "implementationComment": "https://github.com/HackathonFISC/equipo-02/pull/26#issuecomment-6228030472",
+  "changedFiles": [],
+  "completedItems": [],
+  "blockedItems": [
+    {
+      "summary": "Validated workflow inputs and production solver wiring",
+      "followUpIssue": 27,
+      "owner": "KerubeDev"
+    },
+    {
+      "summary": "Freshness warnings and 72-hour eligibility",
+      "followUpIssue": 27,
+      "owner": "KerubeDev"
+    },
+    {
+      "summary": "Caller-visible geocoding fallback provenance",
+      "followUpIssue": 27,
+      "owner": "KerubeDev"
+    }
+  ],
+  "validation": {
+    "status": "skipped",
+    "reason": "The current plan explicitly defers all implementation items to issue #27 and forbids broadening PR #26."
+  },
+  "nextConsumer": "implement-review-fixes for issue #27, followed by review-pr"
+}
