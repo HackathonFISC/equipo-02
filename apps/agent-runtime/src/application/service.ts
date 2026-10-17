@@ -12,6 +12,13 @@ import { parseEvidence, type EvidenceItem } from "./evidence";
 import { counselorGateReasons, type GateReason } from "./gates";
 import { actorFromBetterAuthSession, type Actor, type AuthRole } from "./roles";
 import { assertNoSecrets } from "./secrets";
+import {
+  createMemoryNotificationOutbox,
+  createMockNotificationPort,
+  type NotificationOutbox,
+  type NotificationPort,
+  type OutboundNotification,
+} from "./notification";
 import { createMemoryIdempotencyStore, type IdempotencyStore } from "./store";
 
 export interface DraftInput {
@@ -111,6 +118,8 @@ export interface ApplicationServiceOptions {
   secrets?: readonly string[];
   sessionSecret?: string;
   idempotency?: IdempotencyStore<SubmitView>;
+  outbox?: NotificationOutbox;
+  notifications?: NotificationPort;
 }
 
 export class ApplicationService {
@@ -119,6 +128,8 @@ export class ApplicationService {
   private readonly secrets: readonly string[];
   private readonly sessionSecret: string;
   private readonly idempotency: IdempotencyStore<SubmitView>;
+  private readonly outbox: NotificationOutbox;
+  private readonly notifications: NotificationPort;
   private readonly drafts = new Map<string, StoredDraft>();
   private readonly submissions = new Map<string, StoredSubmission>();
   private readonly events: AuditEvent[] = [];
@@ -129,6 +140,8 @@ export class ApplicationService {
     this.secrets = options.secrets ?? [];
     this.sessionSecret = options.sessionSecret ?? "";
     this.idempotency = options.idempotency ?? createMemoryIdempotencyStore<SubmitView>();
+    this.outbox = options.outbox ?? createMemoryNotificationOutbox();
+    this.notifications = options.notifications ?? createMockNotificationPort();
   }
 
   createDraft(session: unknown, raw: unknown): DraftView {
@@ -244,7 +257,7 @@ export class ApplicationService {
     };
     draft.status = "submitted";
     this.submissions.set(submission.id, submission);
-    this.audit(actor, "submission", action);
+    await this.notify(actor, "submission", action, "employer");
     const view = this.submitView(submission, false);
     await this.idempotency.put({ key: action.idempotencyKey, fingerprint, response: view });
     return view;
@@ -296,6 +309,14 @@ export class ApplicationService {
     this.audit(actor, "approval", action);
     submission.history.push(this.historyEntry(actor, "approval", action.reason));
     return this.submitView(submission, false);
+  }
+
+  async outboundNotifications(session: unknown, traceId: string): Promise<readonly OutboundNotification[]> {
+    this.actor(session);
+    if (traceId.trim() === "") {
+      throw new ApplicationError("traceId is required.", 422, "invalid_input");
+    }
+    return this.outbox.list(traceId);
   }
 
   auditTrail(session: unknown, traceId: string): AuditEvent[] {
@@ -607,6 +628,24 @@ export class ApplicationService {
         }),
       )
       .digest("hex");
+  }
+
+  private async notify(
+    actor: Actor,
+    action: AuditEvent["action"],
+    input: ActionInput,
+    recipientRole: OutboundNotification["recipientRole"],
+  ): Promise<void> {
+    const notification: OutboundNotification = {
+      recipientRole,
+      channel: "in_app",
+      timestamp: this.clock(),
+      traceId: input.traceId,
+    };
+    this.guard(notification);
+    await this.outbox.append(notification);
+    this.audit(actor, action, input);
+    await this.notifications.send(notification);
   }
 
   private audit(actor: Actor, action: AuditEvent["action"], input: ActionInput): void {
