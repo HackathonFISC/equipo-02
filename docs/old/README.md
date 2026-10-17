@@ -1,4 +1,8 @@
-# Documentation
+# Documentation (archive)
+
+> **Archived.** These documents predate the hackathon submission and are kept unchanged for
+> reference. The current submission documents are in [`../`](../README.md). Links that point
+> outside this folder (for example to the repository root) may no longer resolve.
 
 This repository follows the [Diátaxis](https://diataxis.fr/) framework for technical documentation. All documentation lives under `docs/` and is organized into four quadrants.
 
