@@ -156,7 +156,7 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
       try {
         await jobs.release(job.jobId);
       } catch {
-      safeLog({ event: 'chat_job_acknowledgement_unavailable' });
+        safeLog({ event: 'chat_job_acknowledgement_unavailable' });
       }
       safeLog({ event: 'chat_job_acknowledgement_retry' });
       return { outcome: 'retried', jobId: job.jobId };
@@ -177,5 +177,6 @@ export async function processOneChatJob(deps: ChatWorkerDeps = {}): Promise<Chat
     );
   }
   observeChatJob('worker_error');
+  observeChatJob('dead_letter');
   return settle(jobs, job, { code: 'chat_execution_failed', message: 'The chat turn could not be completed.', retryable: true }, safeLog);
 }
