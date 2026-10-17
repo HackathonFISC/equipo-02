@@ -190,7 +190,7 @@ export function createInMemoryChatJobStore(): ChatJobStore {
       job.updatedAt = job.finishedAt;
     },
 
-    async release(jobId, delayMs = 0) {
+    async release(jobId, _delayMs = 0) {
       const job = jobs.get(jobId);
       if (!job) return;
       job.status = 'queued';
